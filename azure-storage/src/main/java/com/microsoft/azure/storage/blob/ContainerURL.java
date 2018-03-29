@@ -140,6 +140,8 @@ public final class ContainerURL extends StorageURL {
      * fails. For more information, see the
      * <a href="https://docs.microsoft.com/rest/api/storageservices/create-container">Azure Docs</a>.
      *
+     * [!code-java[Sample_Code](..\..\..\..\..\..\..\test\java\com\microsoft\azure\storage\BlobStorageAPITests.java#Sample_code1 "Sample code for ContainerURL.create")]
+     *
      * @param metadata
      *      {@link Metadata}
      * @param accessType

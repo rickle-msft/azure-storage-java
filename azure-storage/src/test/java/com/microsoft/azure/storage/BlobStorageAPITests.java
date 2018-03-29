@@ -90,7 +90,9 @@ public class BlobStorageAPITests {
             // Errors are thrown as exceptions in the synchronous (blockingGet) case.
 
             // Create the container. NOTE: Metadata is not currently supported on any resource.
+            // <{Sample_code1}>
             cu.create(null, PublicAccessType.BLOB).blockingGet();
+            // </{Sample_code1>
 
             // List the containers in the account.
             List<Container> containerList = new ArrayList<>();
@@ -131,7 +133,7 @@ public class BlobStorageAPITests {
 
             // Create a snapshot of the blob and pull the snapshot ID out of the headers.
             String snapshot = bu.createSnapshot(null, null).blockingGet()
-                    .headers().snapshot().toString();
+                    .headers().snapshot();
 
             // Create a reference to the blob snapshot. This returns a new BlockBlobURL object that references the same
             // path as the base blob with the query string including the snapshot value appended to the end.
@@ -165,8 +167,7 @@ public class BlobStorageAPITests {
                     null).blockingGet();
 
             // Get the list of blocks on this blob. For demonstration purposes.
-            BlockList blockList = bu3.getBlockList(BlockListType.ALL, null)
-                    .blockingGet().body();
+            BlockList blockList = bu3.getBlockList(BlockListType.ALL, null).blockingGet().body();
             Assert.assertEquals(blockIDs.get(0), blockList.uncommittedBlocks().get(0).name());
 
             // Get a list of blobs in the container including copies, snapshots, and uncommitted blobs.
