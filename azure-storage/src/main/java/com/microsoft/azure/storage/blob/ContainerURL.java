@@ -141,7 +141,7 @@ public final class ContainerURL extends StorageURL {
      * <a href="https://docs.microsoft.com/rest/api/storageservices/create-container">Azure Docs</a>.
      *
      * @apiNote 
-     * [!code-java[Sample_Code](~/azure-storage/src/test/java/com/microsoft/azure/storage/BlobStorageAPITests.java?name={Sample_code1} "Sample code for ContainerURL.create")]
+     * [!code-java[Sample_Code](~/_sample/azure-storage/src/test/java/com/microsoft/azure/storage/BlobStorageAPITests.java?name={Sample_code1} "Sample code for ContainerURL.create")]
      *
      * @param metadata
      *      {@link Metadata}
