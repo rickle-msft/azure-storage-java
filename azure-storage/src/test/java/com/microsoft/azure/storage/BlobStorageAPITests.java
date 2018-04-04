@@ -90,9 +90,9 @@ public class BlobStorageAPITests {
             // Errors are thrown as exceptions in the synchronous (blockingGet) case.
 
             // Create the container. NOTE: Metadata is not currently supported on any resource.
-            // <{Sample_code1}>
+            // <Sample_code1>
             cu.create(null, PublicAccessType.BLOB).blockingGet();
-            // </{Sample_code1>
+            // </Sample_code1>
 
             // List the containers in the account.
             List<Container> containerList = new ArrayList<>();
