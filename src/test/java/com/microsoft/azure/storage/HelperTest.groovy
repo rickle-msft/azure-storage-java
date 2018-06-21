@@ -28,6 +28,7 @@ import com.microsoft.azure.storage.blob.StorageException
 import com.microsoft.azure.storage.blob.StorageURL
 import com.microsoft.azure.storage.blob.models.SignedIdentifier
 import com.microsoft.azure.storage.blob.models.StorageErrorCode
+import com.microsoft.azure.storage.blob.models.StorageErrorException
 import com.microsoft.rest.v2.http.HttpHeaders
 import com.microsoft.rest.v2.http.HttpMethod
 import com.microsoft.rest.v2.http.HttpPipeline
@@ -35,10 +36,15 @@ import com.microsoft.rest.v2.http.HttpRequest
 import com.microsoft.rest.v2.http.HttpResponse
 import com.microsoft.rest.v2.policy.RequestPolicyFactory
 import io.reactivex.Flowable
+import spock.lang.Shared
 
 import java.time.OffsetDateTime
 
 class HelperTest extends APISpec {
+
+    static URL retryTestURL = new URL("http://" + RequestRetryTestFactory.RETRY_TEST_PRIMARY_HOST)
+    static RequestRetryOptions retryTestOptions = new RequestRetryOptions(RetryPolicyType.EXPONENTIAL, 6,
+            2,1000, 4000, RequestRetryTestFactory.RETRY_TEST_SECONDARY_HOST)
 
     def "responseError"() {
         when:
@@ -54,20 +60,33 @@ class HelperTest extends APISpec {
 
     def "Retries until success"() {
         setup:
-        URL url = new URL("http://PrimaryDC")
-        RequestRetryOptions retryOptions = new RequestRetryOptions(RetryPolicyType.EXPONENTIAL, 6, 2,
-                1000, 4000, "SecondaryDC")
-        HttpPipeline pipeline = HttpPipeline.build(new RequestRetryFactory(retryOptions),
+        HttpPipeline pipeline = HttpPipeline.build(new RequestRetryFactory(retryTestOptions),
                 new RequestRetryTestFactory(RequestRetryTestFactory.RETRY_TEST_SCENARIO_RETRY_UNTIL_SUCCESS,
-                        retryOptions.maxTries))
+                        retryTestOptions.maxTries))
 
         when:
-        HttpResponse response = pipeline.sendRequestAsync(new HttpRequest(null, HttpMethod.GET, url,
-                new HttpHeaders(), Flowable.just(RequestRetryTestFactory.RETRY_TEST_DEFAULT_DATA), null))
-                .blockingGet()
+        HttpResponse response = pipeline.sendRequestAsync(new HttpRequest(null, HttpMethod.GET,
+                retryTestURL, new HttpHeaders(),
+                Flowable.just(RequestRetryTestFactory.RETRY_TEST_DEFAULT_DATA), null)).blockingGet()
 
         then:
         response != null
         response.statusCode() == 200
+    }
+
+    def "Retries until max retries"() {
+        setup:
+        RequestRetryTestFactory retryTestFactory = new RequestRetryTestFactory(
+                RequestRetryTestFactory.RETRY_TEST_SCENARIO_RETRY_UNTIL_MAX_RETRIES, retryTestOptions.maxTries)
+        HttpPipeline pipeline = HttpPipeline.build(new RequestRetryFactory(retryTestOptions), retryTestFactory)
+
+        when:
+        pipeline.sendRequestAsync(new HttpRequest(null, HttpMethod.GET, retryTestURL, new HttpHeaders(),
+                Flowable.just(RequestRetryTestFactory.RETRY_TEST_DEFAULT_DATA), null)).blockingGet()
+
+        then:
+        def e = thrown(StorageErrorException)
+        e.response().statusCode() == 500
+        retryTestFactory.tryNumber == retryTestOptions.maxTries
     }
 }

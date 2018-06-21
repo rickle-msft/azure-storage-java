@@ -5,6 +5,7 @@ XXXX.XX.XX Version XX.X.X-Preview
 * Changed the AppendBlobAccessConditions field types to be Long instead of Int.
 * Upgraded Netty dependency to allow uploading memory mapped files with https.
 * Changed RequestRetryOptions maxTries and tryTimeout fields to be Integer instead of int. 0 is no longer allowed.
+* Fixed a bug that prevented proper reset of body stream upon retry.
 
 2018.04.27 Version 10.0.0-preview
 * Initial Release. Please see the README and wiki for information on the new design.
