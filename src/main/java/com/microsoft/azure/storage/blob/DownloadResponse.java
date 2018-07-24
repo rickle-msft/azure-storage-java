@@ -34,9 +34,13 @@ public class DownloadResponse extends RestResponse<BlobDownloadHeaders, Flowable
 
     private RetryReader.HTTPGetterInfo info;
 
-    DownloadResponse(int statusCode, BlobDownloadHeaders blobsDownloadHeaders, Map<String, String> rawHeaders,
+    DownloadResponse(BlobURL blobURL, RetryReader.HTTPGetterInfo info, int statusCode,
+            BlobDownloadHeaders blobsDownloadHeaders, Map<String, String> rawHeaders,
             Flowable<ByteBuffer> byteBufferFlowable) {
         super(statusCode, blobsDownloadHeaders, rawHeaders, byteBufferFlowable);
+
+        this.blobURL = blobURL;
+        this.info = info;
     }
 
     /**
