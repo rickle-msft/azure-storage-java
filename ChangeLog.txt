@@ -5,6 +5,7 @@ XXXX.XX.XX Version XX.X.X-Preview
 * Changed BlobListingDetails constructor to take a flag to include deleted blobs.
 * Restructured the blob and container listing responses.
 * BlockBlobURL.MAX_PUT_BLOCK_BYTES renamed to BlockBlobURL.MAX_STAGE_BLOCK_BYTES.
+* Added methods to TransferManager for conveniently downloading a blob to a buffer or a file.
 
 2018.07.03 Version 10.0.1-Preview
 * Added the RetryReader class to allow for more reliable streaming on large downloads. This is now the return type of blobURL.download
