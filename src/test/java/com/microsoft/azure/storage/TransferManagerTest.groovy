@@ -788,64 +788,11 @@ class TransferManagerTest extends APISpec {
         t.getMessage().contains("remaining size")
     }
 
-    def "Download options fail"() {
+    def "Download file"() {
 
     }
 
-    /*
-    We are simply testing for no errors here. There has historically been a problem with Netty that caused it to
-    crash when uploading multiple medium size files in parallel over https. Here we validate that behavior is
-    fixed. We will test for correctness of the parallel upload elsewhere.
-     */
+    def "Download options fail"() {
 
-    def "Https parallel file upload"() {
-        setup:
-        PipelineOptions po = new PipelineOptions()
-        RequestRetryOptions retryOptions = new RequestRetryOptions(null, null, 300,
-                null, null, null)
-        po.requestRetryOptions = retryOptions
-        po.client = getHttpClient()
-
-        HttpPipeline pipeline = StorageURL.createPipeline(primaryCreds, po)
-
-        // This test requires https.
-        ServiceURL surl = new ServiceURL(new URL("https://" + primaryCreds.getAccountName() + ".blob.core.windows.net"),
-                pipeline)
-
-        ContainerURL containerURL = surl.createContainerURL("abccontainer")
-        containerURL.create(null, null).blockingGet()
-
-        when:
-        Observable.range(0, 4000)
-                .flatMap(new Function<Integer, ObservableSource>() {
-            @Override
-            ObservableSource apply(@NonNull Integer i) throws Exception {
-                BlockBlobURL asyncblob = containerURL.createBlockBlobURL("asyncblob" + i)
-                TransferManager.UploadToBlockBlobOptions asyncOptions = new TransferManager.UploadToBlockBlobOptions(
-                        null, null, null, null, 1)
-
-                return TransferManager.uploadFileToBlockBlob(
-                        FileChannel.open(new File(getClass().getClassLoader().getResource("15mb.txt").getFile())
-                                .toPath()), asyncblob, BlockBlobURL.MAX_STAGE_BLOCK_BYTES, asyncOptions).toObservable()
-            }
-        }, 200)
-                .onErrorReturn((new Function<Throwable, Object>() {
-            @Override
-            Object apply(Throwable throwable) throws Exception {
-                /*
-                We only care about the ReadOnlyBufferException as an indication of the netty failure with memory mapped
-                files. Everything else, like throttling, is fine here.
-                 */
-                if (throwable instanceof ReadOnlyBufferException) {
-                    throw throwable
-                }
-                // This value is not meaningful. We just want the observable to continue.
-                return new Object()
-            }
-        })).blockingSubscribe()
-        //containerURL.delete(null).blockingGet()
-
-        then:
-        notThrown(ReadOnlyBufferException)
     }
 }

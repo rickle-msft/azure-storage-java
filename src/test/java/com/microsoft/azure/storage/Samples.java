@@ -1000,7 +1000,7 @@ public class Samples {
                         Observable.fromIterable(Arrays.asList(data))
                 )
                 // Items emitted by an Observable that results from a concatMap call will preserve the original order.
-                .concatMap(block -> {
+                .concatMapEager(block -> {
                     /*
                      Generate a base64 encoded blockID. Note that all blockIDs must be the same length. It is generally
                      considered best practice to use UUIDs for the blockID.
@@ -1800,7 +1800,7 @@ public class Samples {
                         Observable.fromIterable(Arrays.asList(blockData))
                 )
                 // Items emitted by an Observable that results from a concatMap call will preserve the original order.
-                .concatMap(block -> {
+                .concatMapEager(block -> {
                     /*
                      Generate a base64 encoded blockID. Note that all blockIDs must be the same length. It is generally
                      considered best practice to use UUIDs for the blockID.
@@ -1847,14 +1847,13 @@ public class Samples {
                 .flatMap(response ->
                         // Create the append blob. This creates a zero-length blob that we can now append to.
                         appendBlobURL.create(null, null, null))
-                .toObservable()
-                .flatMap(response ->
+                .flatMapObservable(response ->
                         // This range will act as our for loop to create 5 blocks
                         Observable.range(0, 5))
-                .concatMapCompletable(i -> {
+                .concatMapEager(i -> {
                     String text = String.format(Locale.ROOT, "Appending block #%d\n", i);
                     return appendBlobURL.appendBlock(Flowable.just(ByteBuffer.wrap(text.getBytes())), text.length(),
-                            null).toCompletable();
+                            null).toObservable();
                 }).subscribe();
         // </append_blob>
 
