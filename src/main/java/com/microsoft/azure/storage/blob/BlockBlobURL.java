@@ -77,9 +77,7 @@ public final class BlockBlobURL extends BlobURL {
     public BlockBlobURL withPipeline(HttpPipeline pipeline) {
         try {
             return new BlockBlobURL(new URL(this.storageClient.url()), pipeline);
-        } catch (MalformedURLException e) {
-            // TODO: remove
-        }
+        } catch (MalformedURLException e) { }
         return null;
     }
 
@@ -290,6 +288,4 @@ public final class BlockBlobURL extends BlobURL {
                 accessConditions.getHttpAccessConditions().getIfMatch().toString(),
                 accessConditions.getHttpAccessConditions().getIfNoneMatch().toString(), null));
     }
-
-    //TODO: stageBlockFromURL
 }

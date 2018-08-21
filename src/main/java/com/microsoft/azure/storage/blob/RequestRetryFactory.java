@@ -61,8 +61,6 @@ public final class RequestRetryFactory implements RequestPolicyFactory {
 
         private final RequestRetryOptions requestRetryOptions;
 
-        // TODO: It looked like there was some stuff in here to log how long the operation took. Do we want that?
-
         private RequestRetryPolicy(RequestPolicy nextPolicy, RequestRetryOptions requestRetryOptions) {
             this.nextPolicy = nextPolicy;
             this.requestRetryOptions = requestRetryOptions;

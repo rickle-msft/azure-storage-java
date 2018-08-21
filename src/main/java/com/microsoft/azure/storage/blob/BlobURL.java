@@ -61,7 +61,6 @@ public class BlobURL extends StorageURL {
         try {
             return new BlobURL(new URL(this.storageClient.url()), pipeline);
         } catch (MalformedURLException e) {
-            // TODO: Remove
         }
         return null;
     }
@@ -94,9 +93,7 @@ public class BlobURL extends StorageURL {
     public BlockBlobURL toBlockBlobURL() {
         try {
             return new BlockBlobURL(new URL(this.storageClient.url()), super.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {
-            // TODO: remove.
-        }
+        } catch (MalformedURLException e) {}
         return null;
     }
 
@@ -110,9 +107,7 @@ public class BlobURL extends StorageURL {
     public AppendBlobURL toAppendBlobURL() {
         try {
             return new AppendBlobURL(new URL(this.storageClient.url()), super.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {
-            // TODO: remove
-        }
+        } catch (MalformedURLException e) {}
         return null;
     }
 
@@ -126,9 +121,7 @@ public class BlobURL extends StorageURL {
     public PageBlobURL toPageBlobURL() {
         try {
             return new PageBlobURL(new URL(this.storageClient.url()), super.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {
-            // TODO: remove
-        }
+        } catch (MalformedURLException e) { }
         return null;
     }
 
@@ -620,6 +613,4 @@ public class BlobURL extends StorageURL {
         return addErrorWrappingToSingle(
                 this.storageClient.generatedBlobs().getAccountInfoWithRestResponseAsync());
     }
-
-    // TODO: Update links
 }

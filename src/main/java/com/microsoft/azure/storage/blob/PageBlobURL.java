@@ -72,9 +72,7 @@ public final class PageBlobURL extends BlobURL {
     public PageBlobURL withPipeline(HttpPipeline pipeline) {
         try {
             return new PageBlobURL(new URL(this.storageClient.url()), pipeline);
-        } catch (MalformedURLException e) {
-            // TODO: remove
-        }
+        } catch (MalformedURLException e) { }
         return null;
     }
 

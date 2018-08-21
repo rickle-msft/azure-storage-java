@@ -248,7 +248,6 @@ class APISpec extends Specification {
     }
 
     def cleanup() {
-        // TODO: Scrub auth header here?
         iterationNo = updateIterationNo(specificationContext, iterationNo)
     }
 

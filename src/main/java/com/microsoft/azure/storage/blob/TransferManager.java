@@ -259,8 +259,6 @@ public class TransferManager {
             throw new IllegalArgumentException(SR.BLOB_OVER_MAX_BLOCK_LIMIT);
         }
 
-        // TODO: context with cancel?
-
         // Generate an observable that emits items which are the ByteBuffers in the provided Iterable.
         return Observable.fromIterable(data)
                 /*

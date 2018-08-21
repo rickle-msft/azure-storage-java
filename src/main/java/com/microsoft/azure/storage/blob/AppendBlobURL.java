@@ -72,7 +72,6 @@ public final class AppendBlobURL extends BlobURL {
             return new AppendBlobURL(new URL(this.storageClient.url()), pipeline);
         }
         catch (MalformedURLException e) {
-            //TODO: remove
         }
         return null;
     }

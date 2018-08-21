@@ -221,7 +221,6 @@ class ContainerAPITest extends APISpec {
         key1  | value1 | key2   | value2
         null  | null   | null   | null
         "foo" | "bar"  | "fizz" | "buzz"
-        //TODO: invalid characters. empty metadata
     }
 
     @Unroll

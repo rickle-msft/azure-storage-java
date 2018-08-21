@@ -71,9 +71,7 @@ public final class ServiceURL extends StorageURL {
     public ServiceURL withPipeline(HttpPipeline pipeline) {
         try {
             return new ServiceURL(new URL(super.storageClient.url()), pipeline);
-        } catch (MalformedURLException e) {
-            // TODO: remove
-        }
+        } catch (MalformedURLException e) { }
         return null;
     }
 

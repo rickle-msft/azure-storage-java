@@ -64,9 +64,7 @@ public abstract class StorageURL {
     public URL toURL() {
         try {
             return new URL(this.storageClient.url());
-        } catch (MalformedURLException e) {
-            // TODO: remove and update getLeaseId.
-        }
+        } catch (MalformedURLException e) { }
         return null;
     }
 
@@ -90,7 +88,7 @@ public abstract class StorageURL {
             url.withPath(url.path() + '/');
         }
         url.withPath(url.path() + name);
-        return new URL(url.toString()); // TODO: modify when toURL is released.
+        return url.toURL();
     }
 
     // TODO: Move this? Not discoverable.
