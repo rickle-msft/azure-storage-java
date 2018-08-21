@@ -357,7 +357,6 @@ public final class ContainerURL extends StorageURL {
             }
         }
 
-        // TODO: validate that empty list clears permissions and null list does not change list. Document behavior.
         return addErrorWrappingToSingle(this.storageClient.generatedContainers()
                 .setAccessPolicyWithRestResponseAsync(identifiers, null,
                 accessConditions.getLeaseAccessConditions().getLeaseId(), accessType,

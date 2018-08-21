@@ -1265,10 +1265,6 @@ public class Samples {
                 .blockingGet();
     }
 
-    public void progressUploadDownload() {
-        // TODO:
-    }
-
     // This example shows how to copy a source document on the Internet to a blob.
     @Test
     public void exampleBlobURL_startCopy() throws MalformedURLException, InvalidKeyException {
@@ -1420,7 +1416,6 @@ public class Samples {
 
     }
 
-    // TODO: Lease? Root container?
     // TODO: Advanced pipeline configuration
 
     /*

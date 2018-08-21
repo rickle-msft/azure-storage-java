@@ -397,10 +397,14 @@ class BlockBlobAPITest extends APISpec {
     def "Get block list"() {
         setup:
         String blockID = getBlockID()
-        bu.stageBlock(blockID, defaultFlowable, defaultDataSize,null).blockingGet()
-        bu.commitBlockList(Arrays.asList(blockID), null, null, null).blockingGet()
         String blockID2 = getBlockID()
+        bu.stageBlock(blockID, defaultFlowable, defaultDataSize,null).blockingGet()
         bu.stageBlock(blockID2, defaultFlowable, defaultDataSize, null).blockingGet()
+        bu.commitBlockList(Arrays.asList(blockID, blockID2), null, null, null).blockingGet()
+        String blockID3 = getBlockID()
+        String blockID4 = getBlockID()
+        bu.stageBlock(blockID3, defaultFlowable, defaultDataSize, null).blockingGet()
+        bu.stageBlock(blockID4, defaultFlowable, defaultDataSize, null).blockingGet()
 
         when:
         BlockBlobGetBlockListResponse response = bu.getBlockList(BlockListType.ALL, null)
@@ -409,14 +413,16 @@ class BlockBlobAPITest extends APISpec {
         then:
         response.body().committedBlocks().get(0).name() == blockID
         response.body().committedBlocks().get(0).size() == defaultDataSize
-        response.body().uncommittedBlocks().get(0).name() == blockID2
+        response.body().committedBlocks().get(1).name() == blockID2
+        response.body().committedBlocks().get(1).size() == defaultDataSize
+        response.body().uncommittedBlocks().get(0).name() == blockID3
         response.body().uncommittedBlocks().get(0).size() == defaultDataSize
+        response.body().uncommittedBlocks().get(1).name() == blockID4
+        response.body().uncommittedBlocks().get(1).size() == defaultDataSize
         validateBasicHeaders(response.headers())
         response.headers().contentType() != null
-        response.headers().blobContentLength() == (long) defaultDataSize
+        response.headers().blobContentLength() == defaultDataSize * 2L
     }
-
-    // TODO: at least two blocks per list
 
     @Unroll
     def "Get block list type"() {

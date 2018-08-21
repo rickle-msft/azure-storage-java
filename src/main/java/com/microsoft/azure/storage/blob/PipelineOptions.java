@@ -77,7 +77,6 @@ public final class PipelineOptions {
                 return HttpPipelineLogLevel.OFF;
             }
 
-            // TODO: Revisit
             @Override
             public void log(HttpPipelineLogLevel logLevel, String s, Object... objects) {
                 if (logLevel == HttpPipelineLogLevel.INFO) {

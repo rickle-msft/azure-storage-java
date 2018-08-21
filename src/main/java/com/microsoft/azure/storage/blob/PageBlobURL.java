@@ -132,7 +132,6 @@ public final class PageBlobURL extends BlobURL {
         metadata = metadata == null ? Metadata.NONE : metadata;
         accessConditions = accessConditions == null ? BlobAccessConditions.NONE : accessConditions;
 
-        // TODO: What if you pass 0 for pageblob size? Validate?
         return addErrorWrappingToSingle(this.storageClient.generatedPageBlobs().createWithRestResponseAsync(
                 0, size, null,
                 headers.getContentType(),

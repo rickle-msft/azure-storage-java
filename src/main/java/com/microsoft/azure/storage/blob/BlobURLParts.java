@@ -114,7 +114,6 @@ public final class BlobURLParts {
         }
 
         for (Map.Entry<String, String[]> entry : this.unparsedParameters.entrySet()) {
-            // TODO: Test this is the proper encoding
             // The commas are intentionally encoded.
             url.setQueryParameter(entry.getKey(),
                     Utility.safeURLEncode(String.join(",", entry.getValue())));
