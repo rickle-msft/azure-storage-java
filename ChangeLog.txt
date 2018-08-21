@@ -4,6 +4,7 @@ XXXX.XX.XX Version XX.X.X
 * Support for the getAccountInfo api on ServiceURL, ContainerURL, and BlobURL.
 * Added support for setting service properties related to static websites.
 * Changed BlobURL.startCopy sourceAccessConditions parameter to be HTTPAccessConditions as lease is not actually supported.
+* Removed IProgressReceiver. It will be added back as a feature at a later date when we can add more complete support for it.
 
 2018.08.08 Version 10.0.3-Preview
 * Resolved dependency issues

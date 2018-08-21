@@ -44,10 +44,7 @@ public class TransferManager {
          * An object which represents the default parallel upload options. progressReceiver=null. httpHeaders, metadata,
          * and accessConditions are default values. parallelism=5.
          */
-        public static final UploadToBlockBlobOptions DEFAULT = new UploadToBlockBlobOptions(null,
-                null, null, null, null);
-
-        private IProgressReceiver progressReceiver;
+        public static final UploadToBlockBlobOptions DEFAULT = new UploadToBlockBlobOptions(null, null, null, null);
 
         private BlobHTTPHeaders httpHeaders;
 
@@ -61,9 +58,6 @@ public class TransferManager {
          * Creates a new object that configures the parallel upload behavior. Null may be passed to accept the default
          * behavior.
          *
-         * @param progressReceiver
-         *      An object that implements the {@link IProgressReceiver} interface which will be invoked periodically as
-         *      bytes are sent in a PutBlock call to the BlockBlobURL. May be null if no progress reports are desired.
          * @param httpHeaders
          *      {@link BlobHTTPHeaders}
          * @param metadata
@@ -74,8 +68,8 @@ public class TransferManager {
          *      A {@code int} that indicates the maximum number of blocks to upload in parallel. Must be greater than 0.
          *      The default is 5 (null=default).
          */
-        public UploadToBlockBlobOptions(IProgressReceiver progressReceiver, BlobHTTPHeaders httpHeaders,
-                                        Metadata metadata, BlobAccessConditions accessConditions, Integer parallelism) {
+        public UploadToBlockBlobOptions(BlobHTTPHeaders httpHeaders, Metadata metadata,
+                BlobAccessConditions accessConditions, Integer parallelism) {
             if (parallelism == null) {
                 this.parallelism = 5;
             }
@@ -85,7 +79,6 @@ public class TransferManager {
                 this.parallelism = parallelism;
             }
 
-            this.progressReceiver = progressReceiver;
             this.httpHeaders = httpHeaders;
             this.metadata = metadata;
             this.accessConditions = accessConditions == null ? BlobAccessConditions.NONE : accessConditions;
@@ -271,8 +264,6 @@ public class TransferManager {
                         throw new IllegalArgumentException(SR.INVALID_BLOCK_SIZE);
                     }
 
-                    // TODO: progress
-
                     final String blockId = Base64.getEncoder().encodeToString(
                             UUID.randomUUID().toString().getBytes());
 
@@ -318,9 +309,6 @@ public class TransferManager {
 
     private static Single<CommonRestResponse> doSingleShotUpload(
             Flowable<ByteBuffer> data, long size, BlockBlobURL blockBlobURL, UploadToBlockBlobOptions options) {
-        if (options.progressReceiver != null) {
-            // TODO: Wrap in a progress stream once progress is written.
-        }
 
         // Transform the specific RestResponse into a CommonRestResponse.
         return blockBlobURL.upload(data, size, options.httpHeaders,
