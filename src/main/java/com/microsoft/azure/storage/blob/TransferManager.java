@@ -38,53 +38,6 @@ import static java.lang.StrictMath.toIntExact;
  */
 public class TransferManager {
 
-    public static class UploadToBlockBlobOptions {
-
-        /**
-         * An object which represents the default parallel upload options. progressReceiver=null. httpHeaders, metadata,
-         * and accessConditions are default values. parallelism=5.
-         */
-        public static final UploadToBlockBlobOptions DEFAULT = new UploadToBlockBlobOptions(null, null, null, null);
-
-        private BlobHTTPHeaders httpHeaders;
-
-        private Metadata metadata;
-
-        private BlobAccessConditions accessConditions;
-
-        private int parallelism;
-
-        /**
-         * Creates a new object that configures the parallel upload behavior. Null may be passed to accept the default
-         * behavior.
-         *
-         * @param httpHeaders
-         *      {@link BlobHTTPHeaders}
-         * @param metadata
-         *      {@link Metadata}
-         * @param accessConditions
-         *      {@link BlobAccessConditions}
-         * @param parallelism
-         *      A {@code int} that indicates the maximum number of blocks to upload in parallel. Must be greater than 0.
-         *      The default is 5 (null=default).
-         */
-        public UploadToBlockBlobOptions(BlobHTTPHeaders httpHeaders, Metadata metadata,
-                BlobAccessConditions accessConditions, Integer parallelism) {
-            if (parallelism == null) {
-                this.parallelism = 5;
-            }
-            else if (parallelism <= 0) {
-                throw new IllegalArgumentException("Parallelism must be > 0");
-            } else {
-                this.parallelism = parallelism;
-            }
-
-            this.httpHeaders = httpHeaders;
-            this.metadata = metadata;
-            this.accessConditions = accessConditions == null ? BlobAccessConditions.NONE : accessConditions;
-        }
-    }
-
     /**
      * Uploads the contents of a file to a block blob in parallel, breaking it into block-size chunks if necessary.
      *
@@ -103,17 +56,17 @@ public class TransferManager {
      *      a single put-blob operation. Must be between 1 and {@link BlockBlobURL#MAX_STAGE_BLOCK_BYTES}. Note as well
      *      that {@code fileLength/blockLength} must be less than or equal to {@link BlockBlobURL#MAX_BLOCKS}.
      * @param options
-     *      {@link UploadToBlockBlobOptions}
+     *      {@link TransferManagerUploadToBlockBlobOptions}
      * @return
      *      Emits the successful response.
      */
     public static Single<CommonRestResponse> uploadFileToBlockBlob(
             final FileChannel file, final BlockBlobURL blockBlobURL, final int blockLength,
-            final UploadToBlockBlobOptions options) {
+            final TransferManagerUploadToBlockBlobOptions options) {
         Utility.assertNotNull("file", file);
         Utility.assertNotNull("blockBlobURL", blockBlobURL);
         Utility.assertInBounds("blockLength", blockLength, 1, BlockBlobURL.MAX_STAGE_BLOCK_BYTES);
-        UploadToBlockBlobOptions optionsReal = options == null ? UploadToBlockBlobOptions.DEFAULT : options;
+        TransferManagerUploadToBlockBlobOptions optionsReal = options == null ? TransferManagerUploadToBlockBlobOptions.DEFAULT : options;
 
         try {
             // If the size of the file can fit in a single upload, do it this way.
@@ -146,7 +99,7 @@ public class TransferManager {
         }
     }
 
-    static int calculateNumBlocks(long dataSize, int blockLength) {
+    private static int calculateNumBlocks(long dataSize, int blockLength) {
         // Can successfully cast to an int because MaxBlockSize is an int, which this expression must be less than.
         int numBlocks = toIntExact(dataSize/blockLength);
         // Include an extra block for trailing data.
@@ -173,17 +126,17 @@ public class TransferManager {
      *      affect the total number of service requests made. This value will be ignored if the data can be uploaded in
      *      a single put-blob operation.
      * @param options
-     *      {@link UploadToBlockBlobOptions}
+     *      {@link TransferManagerUploadToBlockBlobOptions}
      * @return
      *      Emits the successful response.
      */
     public static Single<CommonRestResponse> uploadByteBufferToBlockBlob(
             final ByteBuffer data, final BlockBlobURL blockBlobURL, final int blockLength,
-            final UploadToBlockBlobOptions options) {
+            final TransferManagerUploadToBlockBlobOptions options) {
         Utility.assertNotNull("data", data);
         Utility.assertNotNull("blockBlobURL", blockBlobURL);
         Utility.assertInBounds("blockLength", blockLength, 1, BlockBlobURL.MAX_STAGE_BLOCK_BYTES);
-        UploadToBlockBlobOptions optionsReal = options == null ? UploadToBlockBlobOptions.DEFAULT : options;
+        TransferManagerUploadToBlockBlobOptions optionsReal = options == null ? TransferManagerUploadToBlockBlobOptions.DEFAULT : options;
 
         // If the size of the buffer can fit in a single upload, do it this way.
         if (data.remaining() < BlockBlobURL.MAX_PUT_BLOB_BYTES) {
@@ -224,16 +177,16 @@ public class TransferManager {
      * @param blockBlobURL
      *      A {@link BlockBlobURL} that points to the blob to which the data should be uploaded.
      * @param options
-     *      {@link UploadToBlockBlobOptions}
+     *      {@link TransferManagerUploadToBlockBlobOptions}
      * @return
      *      Emits the successful response.
      */
     public static Single<CommonRestResponse> uploadByteBuffersToBlockBlob(
             final Iterable<ByteBuffer> data, final BlockBlobURL blockBlobURL,
-            final UploadToBlockBlobOptions options) {
+            final TransferManagerUploadToBlockBlobOptions options) {
         Utility.assertNotNull("data", data);
         Utility.assertNotNull("blockBlobURL", blockBlobURL);
-        UploadToBlockBlobOptions optionsReal = options == null ? UploadToBlockBlobOptions.DEFAULT : options;
+        TransferManagerUploadToBlockBlobOptions optionsReal = options == null ? TransferManagerUploadToBlockBlobOptions.DEFAULT : options;
 
         // Determine the size of the blob and the number of blocks
         long size = 0;
@@ -273,7 +226,7 @@ public class TransferManager {
                      into an Observable which emits one item to comply with the signature of concatMapEager.
                      */
                     return blockBlobURL.stageBlock(blockId, Flowable.just(blockData),
-                            blockData.remaining(), optionsReal.accessConditions.getLeaseAccessConditions())
+                            blockData.remaining(), optionsReal.getAccessConditions().getLeaseAccessConditions())
                             .map(x -> blockId).toObservable();
 
                 /*
@@ -285,7 +238,7 @@ public class TransferManager {
                  here because we have converted from a Single.
                  */
 
-                }, optionsReal.parallelism, 1)
+                }, optionsReal.getParallelism(), 1)
                 /*
                 collectInto will gather each of the emitted blockIds into a list. Because we used concatMap, the Ids
                 will be emitted according to their block number, which means the list generated here will be properly
@@ -298,8 +251,8 @@ public class TransferManager {
                 "map" it into a call to commitBlockList.
                  */
                 .flatMap( ids ->
-                        blockBlobURL.commitBlockList(ids, optionsReal.httpHeaders, optionsReal.metadata,
-                                optionsReal.accessConditions))
+                        blockBlobURL.commitBlockList(ids, optionsReal.getHttpHeaders(), optionsReal.getMetadata(),
+                                optionsReal.getAccessConditions()))
                 /*
                 Finally, we must turn the specific response type into a CommonRestResponse by mapping.
                  */
@@ -308,11 +261,11 @@ public class TransferManager {
     }
 
     private static Single<CommonRestResponse> doSingleShotUpload(
-            Flowable<ByteBuffer> data, long size, BlockBlobURL blockBlobURL, UploadToBlockBlobOptions options) {
+            Flowable<ByteBuffer> data, long size, BlockBlobURL blockBlobURL, TransferManagerUploadToBlockBlobOptions options) {
 
         // Transform the specific RestResponse into a CommonRestResponse.
-        return blockBlobURL.upload(data, size, options.httpHeaders,
-                options.metadata, options.accessConditions)
+        return blockBlobURL.upload(data, size, options.getHttpHeaders(),
+                options.getMetadata(), options.getAccessConditions())
                 .map(CommonRestResponse::createFromPutBlobResponse);
     }
 }

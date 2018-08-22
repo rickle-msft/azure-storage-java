@@ -91,9 +91,9 @@ public final class ContainerURL extends StorageURL {
         try {
             return new BlockBlobURL(StorageURL.appendToURLPath(new URL(this.storageClient.url()), blobName),
                     this.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {}
-        // This will never happen because we are positive the storageClientURL is valid
-        return null;
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -113,9 +113,9 @@ public final class ContainerURL extends StorageURL {
         try {
             return new PageBlobURL(StorageURL.appendToURLPath(new URL(this.storageClient.url()), blobName),
                     this.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {}
-        // This will never happen because we are positive the storageClientURL is valid
-        return null;
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -135,9 +135,9 @@ public final class ContainerURL extends StorageURL {
         try {
             return new AppendBlobURL(StorageURL.appendToURLPath(new URL(this.storageClient.url()), blobName),
                     this.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {}
-        // This will never happen because we are positive the storageClientURL is valid
-        return null;
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -157,9 +157,9 @@ public final class ContainerURL extends StorageURL {
         try {
             return new BlobURL(StorageURL.appendToURLPath(new URL(this.storageClient.url()), blobName),
                     this.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {}
-        // This will never happen because we are positive the storageClientURL is valid
-        return null;
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

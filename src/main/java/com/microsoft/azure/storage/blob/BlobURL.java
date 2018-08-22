@@ -61,8 +61,8 @@ public class BlobURL extends StorageURL {
         try {
             return new BlobURL(new URL(this.storageClient.url()), pipeline);
         } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
         }
-        return null;
     }
 
     /**
@@ -93,9 +93,9 @@ public class BlobURL extends StorageURL {
     public BlockBlobURL toBlockBlobURL() {
         try {
             return new BlockBlobURL(new URL(this.storageClient.url()), super.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {}
-        // This will never happen because we are positive the storageClientURL is valid
-        return null;
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -108,9 +108,9 @@ public class BlobURL extends StorageURL {
     public AppendBlobURL toAppendBlobURL() {
         try {
             return new AppendBlobURL(new URL(this.storageClient.url()), super.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {}
-        // This will never happen because we are positive the storageClientURL is valid
-        return null;
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -123,9 +123,9 @@ public class BlobURL extends StorageURL {
     public PageBlobURL toPageBlobURL() {
         try {
             return new PageBlobURL(new URL(this.storageClient.url()), super.storageClient.httpPipeline());
-        } catch (MalformedURLException e) { }
-        // This will never happen because we are positive the storageClientURL is valid
-        return null;
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

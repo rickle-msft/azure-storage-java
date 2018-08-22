@@ -33,7 +33,7 @@ import java.util.Map;
 public class DownloadResponse extends RestResponse<BlobDownloadHeaders, Flowable<ByteBuffer>> implements Closeable {
     private BlobURL blobURL;
 
-    private RetryReader.HTTPGetterInfo info;
+    private RetryReaderHTTPGetterInfo info;
 
     DownloadResponse(HttpRequest request, int statusCode, BlobDownloadHeaders blobsDownloadHeaders,
             Map<String, String> rawHeaders, Flowable<ByteBuffer> byteBufferFlowable) {

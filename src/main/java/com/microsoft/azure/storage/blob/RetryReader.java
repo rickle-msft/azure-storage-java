@@ -50,17 +50,17 @@ import java.util.function.Function;
 public final class RetryReader extends Flowable<ByteBuffer> {
     private Single<? extends RestResponse<?, Flowable<ByteBuffer>>> response;
 
-    private HTTPGetterInfo info;
+    private RetryReaderHTTPGetterInfo info;
 
     private RetryReaderOptions options;
 
-    private final Function<HTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>> getter;
+    private final Function<RetryReaderHTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>> getter;
 
-    public RetryReader(Single<? extends RestResponse<?, Flowable<ByteBuffer>>> initialResponse, HTTPGetterInfo info,
-            RetryReaderOptions options,
-            Function<HTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>> getter) {
+    public RetryReader(Single<? extends RestResponse<?, Flowable<ByteBuffer>>> initialResponse,
+            RetryReaderHTTPGetterInfo info, RetryReaderOptions options,
+            Function<RetryReaderHTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>> getter) {
         Utility.assertNotNull("getter", getter);
-        info = info == null ? new HTTPGetterInfo() : info;
+        info = info == null ? new RetryReaderHTTPGetterInfo() : info;
         if (info.count != null) {
             Utility.assertInBounds("info.count", info.count, 0, Integer.MAX_VALUE);
         }
@@ -152,29 +152,5 @@ public final class RetryReader extends Flowable<ByteBuffer> {
                         return Flowable.empty();
                     }
                 });
-    }
-
-    /**
-     * HTTPGetterInfo is a passed to the getter function of a RetryReader to specify parameters needed for the GET
-     * request.
-     */
-    public static class HTTPGetterInfo {
-        /**
-         * The start offset that should be used when creating the HTTP GET request's Range header. Defaults to 0.
-         */
-        public long offset = 0;
-
-        /**
-         * The count of bytes that should be used to calculate the end offset when creating the HTTP GET request's Range
-         * header. {@code} null is the default and indicates that the entire rest of the blob should be retrieved.
-         */
-        public Long count = null;
-
-        /**
-         * The resource's etag that should be used when creating the HTTP GET request's If-Match header. Note that the
-         * Etag is returned with any operation that modifies the resource and by a call to {@link
-         * BlobURL#getProperties(BlobAccessConditions)}. Defaults to null.
-         */
-        public ETag eTag = null;
     }
 }

@@ -1398,7 +1398,7 @@ public class Samples {
                 .flatMap(response ->
                         // Upload some data to a blob
                         TransferManager.uploadByteBufferToBlockBlob(ByteBuffer.wrap("Data".getBytes()), blobURL,
-                                BlockBlobURL.MAX_STAGE_BLOCK_BYTES, TransferManager.UploadToBlockBlobOptions.DEFAULT))
+                                BlockBlobURL.MAX_STAGE_BLOCK_BYTES, TransferManagerUploadToBlockBlobOptions.DEFAULT))
                 .flatMap(response ->
                         blobURL.download(null, null, false))
                 .flatMapPublisher(response ->

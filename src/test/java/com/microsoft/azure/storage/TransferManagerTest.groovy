@@ -4,27 +4,20 @@ import com.microsoft.azure.storage.blob.BlobAccessConditions
 import com.microsoft.azure.storage.blob.BlobHTTPHeaders
 import com.microsoft.azure.storage.blob.BlockBlobURL
 import com.microsoft.azure.storage.blob.CommonRestResponse
-import com.microsoft.azure.storage.blob.ContainerURL
 import com.microsoft.azure.storage.blob.HTTPAccessConditions
 import com.microsoft.azure.storage.blob.LeaseAccessConditions
 import com.microsoft.azure.storage.blob.Metadata
 import com.microsoft.azure.storage.blob.PipelineOptions
-import com.microsoft.azure.storage.blob.RequestRetryOptions
-import com.microsoft.azure.storage.blob.ServiceURL
 import com.microsoft.azure.storage.blob.StorageException
 import com.microsoft.azure.storage.blob.StorageURL
 import com.microsoft.azure.storage.blob.TransferManager
+import com.microsoft.azure.storage.blob.TransferManagerUploadToBlockBlobOptions
 import com.microsoft.azure.storage.blob.models.BlobGetPropertiesResponse
 import com.microsoft.azure.storage.blob.models.BlockBlobCommitBlockListResponse
 import com.microsoft.azure.storage.blob.models.BlockBlobUploadResponse
 import com.microsoft.azure.storage.blob.models.StorageErrorCode
-import com.microsoft.rest.v2.http.HttpPipeline
 import com.microsoft.rest.v2.util.FlowableUtil
 import io.reactivex.Flowable
-import io.reactivex.Observable
-import io.reactivex.ObservableSource
-import io.reactivex.annotations.NonNull
-import io.reactivex.functions.Function
 import spock.lang.Unroll
 
 import java.nio.ByteBuffer
@@ -48,8 +41,7 @@ class TransferManagerTest extends APISpec {
 
         when:
         CommonRestResponse response = TransferManager.uploadByteBuffersToBlockBlob(buffers, bu,
-                new TransferManager.UploadToBlockBlobOptions(null, null, null,
-                        null, null)).blockingGet()
+                new TransferManagerUploadToBlockBlobOptions(null, null, null, null)).blockingGet()
 
         then:
         response.response() instanceof BlockBlobUploadResponse // Ensure we did a single put for a small blob.
@@ -64,8 +56,7 @@ class TransferManagerTest extends APISpec {
 
         when:
         CommonRestResponse response = TransferManager.uploadByteBuffersToBlockBlob(buffers, bu,
-                new TransferManager.UploadToBlockBlobOptions(null, null, null,
-                        null, 20)).blockingGet()
+                new TransferManagerUploadToBlockBlobOptions(null, null, null, 20)).blockingGet()
 
         then:
         // Ensure we did a commitBlockList for large blobs.
@@ -128,8 +119,7 @@ class TransferManagerTest extends APISpec {
 
         when:
         TransferManager.uploadByteBuffersToBlockBlob(data, bu,
-                new TransferManager.UploadToBlockBlobOptions(null, null, null,
-                        null, null)).blockingGet()
+                new TransferManagerUploadToBlockBlobOptions(null, null, null, null)).blockingGet()
 
         then:
         thrown(IllegalArgumentException)
@@ -142,8 +132,7 @@ class TransferManagerTest extends APISpec {
         greater than max put block size, this will also fail the desired check.
          */
         TransferManager.uploadByteBuffersToBlockBlob(Arrays.asList(getRandomData(BlockBlobURL.MAX_PUT_BLOB_BYTES + 1)),
-                bu, new TransferManager.UploadToBlockBlobOptions(null, null, null,
-                null, null)).blockingGet()
+                bu, new TransferManagerUploadToBlockBlobOptions(null, null, null, null)).blockingGet()
 
         then:
         thrown(IllegalArgumentException)
@@ -154,7 +143,7 @@ class TransferManagerTest extends APISpec {
     def "Upload buffers headers"() {
         when:
         TransferManager.uploadByteBuffersToBlockBlob(data, bu,
-                new TransferManager.UploadToBlockBlobOptions(null, new BlobHTTPHeaders(cacheControl,
+                new TransferManagerUploadToBlockBlobOptions(new BlobHTTPHeaders(cacheControl,
                         contentDisposition, contentEncoding, contentLanguage, contentMD5, contentType), null,
                         null, null)).blockingGet()
 
@@ -189,8 +178,7 @@ class TransferManagerTest extends APISpec {
 
         when:
         TransferManager.uploadByteBuffersToBlockBlob(data, bu,
-                new TransferManager.UploadToBlockBlobOptions(null, null, metadata,
-                        null, null)).blockingGet()
+                new TransferManagerUploadToBlockBlobOptions(null, metadata, null, null)).blockingGet()
         BlobGetPropertiesResponse response = bu.getProperties(null).blockingGet()
 
         then:
@@ -221,8 +209,8 @@ class TransferManagerTest extends APISpec {
                 null, null)
 
         expect:
-        TransferManager.uploadByteBuffersToBlockBlob(data, bu, new TransferManager.UploadToBlockBlobOptions(
-                null, null, null, bac, null))
+        TransferManager.uploadByteBuffersToBlockBlob(data, bu, new TransferManagerUploadToBlockBlobOptions(
+                null, null, bac, null))
                 .blockingGet().statusCode() == 201
 
         where:
@@ -251,8 +239,8 @@ class TransferManagerTest extends APISpec {
                 null, null)
 
         when:
-        TransferManager.uploadByteBuffersToBlockBlob(data, bu, new TransferManager.UploadToBlockBlobOptions(
-                null, null, null, bac, null))
+        TransferManager.uploadByteBuffersToBlockBlob(data, bu, new TransferManagerUploadToBlockBlobOptions(
+                null, null, bac, null))
                 .blockingGet()
 
         then:
@@ -287,7 +275,7 @@ class TransferManagerTest extends APISpec {
         // Block length will be ignored for single shot.
         CommonRestResponse response = TransferManager.uploadByteBufferToBlockBlob(data, bu,
                 (int)(BlockBlobURL.MAX_STAGE_BLOCK_BYTES/10),
-                new TransferManager.UploadToBlockBlobOptions(null, null, null,
+                new TransferManagerUploadToBlockBlobOptions(null, null,
                         null, 20)).blockingGet()
 
         then:
@@ -334,7 +322,7 @@ class TransferManagerTest extends APISpec {
     def "Upload buffer headers"() {
         when:
         TransferManager.uploadByteBufferToBlockBlob(defaultData, bu, 5,
-                new TransferManager.UploadToBlockBlobOptions(null, new BlobHTTPHeaders(cacheControl,
+                new TransferManagerUploadToBlockBlobOptions(new BlobHTTPHeaders(cacheControl,
                         contentDisposition, contentEncoding, contentLanguage, contentMD5, contentType), null,
                         null, null)).blockingGet()
 
@@ -366,8 +354,7 @@ class TransferManagerTest extends APISpec {
 
         when:
         TransferManager.uploadByteBufferToBlockBlob(defaultData, bu, 5,
-                new TransferManager.UploadToBlockBlobOptions(null, null, metadata,
-                        null, null)).blockingGet()
+                new TransferManagerUploadToBlockBlobOptions(null, metadata, null, null)).blockingGet()
         BlobGetPropertiesResponse response = bu.getProperties(null).blockingGet()
 
         then:
@@ -390,8 +377,8 @@ class TransferManagerTest extends APISpec {
                 null, null)
 
         expect:
-        TransferManager.uploadByteBufferToBlockBlob(defaultData, bu, 5, new TransferManager.UploadToBlockBlobOptions(
-                null, null, null, bac, null))
+        TransferManager.uploadByteBufferToBlockBlob(defaultData, bu, 5, new TransferManagerUploadToBlockBlobOptions(
+                null, null, bac, null))
                 .blockingGet().statusCode() == 201
 
         where:
@@ -415,7 +402,7 @@ class TransferManagerTest extends APISpec {
 
         when:
         TransferManager.uploadByteBufferToBlockBlob(defaultData, bu, 5,
-                new TransferManager.UploadToBlockBlobOptions(null, null, null,
+                new TransferManagerUploadToBlockBlobOptions(null, null,
                         bac, null))
                 .blockingGet()
 
@@ -439,7 +426,7 @@ class TransferManagerTest extends APISpec {
         // Block length will be ignored for single shot.
         CommonRestResponse response = TransferManager.uploadFileToBlockBlob(FileChannel.open(file.toPath()), bu,
                 (int)(BlockBlobURL.MAX_STAGE_BLOCK_BYTES/10),
-                new TransferManager.UploadToBlockBlobOptions(null, null, null,
+                new TransferManagerUploadToBlockBlobOptions(null, null,
                         null, 20)).blockingGet()
 
         then:
@@ -511,7 +498,7 @@ class TransferManagerTest extends APISpec {
 
         when:
         TransferManager.uploadFileToBlockBlob(FileChannel.open(file.toPath()), bu, 5,
-                new TransferManager.UploadToBlockBlobOptions(null, new BlobHTTPHeaders(cacheControl,
+                new TransferManagerUploadToBlockBlobOptions(new BlobHTTPHeaders(cacheControl,
                         contentDisposition, contentEncoding, contentLanguage, contentMD5, contentType), null,
                         null, null)).blockingGet()
 
@@ -543,8 +530,7 @@ class TransferManagerTest extends APISpec {
 
         when:
         TransferManager.uploadFileToBlockBlob(FileChannel.open(getRandomFile(10).toPath()), bu, 5,
-                new TransferManager.UploadToBlockBlobOptions(null, null, metadata,
-                        null, null)).blockingGet()
+                new TransferManagerUploadToBlockBlobOptions(null, metadata, null, null)).blockingGet()
         BlobGetPropertiesResponse response = bu.getProperties(null).blockingGet()
 
         then:
@@ -568,8 +554,7 @@ class TransferManagerTest extends APISpec {
 
         expect:
         TransferManager.uploadFileToBlockBlob(FileChannel.open(getRandomFile(10).toPath()), bu, 5,
-                new TransferManager.UploadToBlockBlobOptions(null, null, null, bac,
-                        null))
+                new TransferManagerUploadToBlockBlobOptions(null, null, bac, null))
                 .blockingGet().statusCode() == 201
 
         where:
@@ -593,8 +578,7 @@ class TransferManagerTest extends APISpec {
 
         when:
         TransferManager.uploadFileToBlockBlob(FileChannel.open(getRandomFile(10).toPath()), bu, 5,
-                new TransferManager.UploadToBlockBlobOptions(null, null, null,
-                        bac, null))
+                new TransferManagerUploadToBlockBlobOptions(null, null, bac, null))
                 .blockingGet()
 
         then:
@@ -613,8 +597,7 @@ class TransferManagerTest extends APISpec {
 
     def "Upload options fail"() {
         when:
-        new TransferManager.UploadToBlockBlobOptions(null, null, null,
-                null, -1)
+        new TransferManagerUploadToBlockBlobOptions(null, null, null, -1)
 
         then:
         thrown(IllegalArgumentException)

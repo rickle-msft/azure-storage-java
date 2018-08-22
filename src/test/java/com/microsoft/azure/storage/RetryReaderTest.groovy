@@ -18,6 +18,7 @@ import com.microsoft.azure.storage.blob.BlobRange
 import com.microsoft.azure.storage.blob.BlockBlobURL
 import com.microsoft.azure.storage.blob.ETag
 import com.microsoft.azure.storage.blob.RetryReader
+import com.microsoft.azure.storage.blob.RetryReaderHTTPGetterInfo
 import com.microsoft.azure.storage.blob.RetryReaderOptions
 import com.microsoft.rest.v2.RestException
 import com.microsoft.rest.v2.RestResponse
@@ -46,7 +47,7 @@ class RetryReaderTest extends APISpec {
 
     def "Network call"() {
         setup:
-        def info = new RetryReader.HTTPGetterInfo()
+        def info = new RetryReaderHTTPGetterInfo()
         info.offset = 0
         info.count = defaultData.remaining()
 
@@ -54,9 +55,9 @@ class RetryReaderTest extends APISpec {
         options.maxRetryRequests = 5
 
         expect:
-        FlowableUtil.collectBytesInBuffer(new RetryReader(bu.download(null, null, false), info, options, new Function<RetryReader.HTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
+        FlowableUtil.collectBytesInBuffer(new RetryReader(bu.download(null, null, false), info, options, new Function<RetryReaderHTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
             @Override
-            Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReader.HTTPGetterInfo httpGetterInfo) {
+            Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReaderHTTPGetterInfo httpGetterInfo) {
                 bu.download(new BlobRange(httpGetterInfo.offset, httpGetterInfo.count), null, false)
             }
         })).blockingGet() == defaultData
@@ -73,7 +74,7 @@ class RetryReaderTest extends APISpec {
     def "Successful"() {
         setup:
         RetryReaderMockFlowable flowable = new RetryReaderMockFlowable(scenario)
-        def info = new RetryReader.HTTPGetterInfo()
+        def info = new RetryReaderHTTPGetterInfo()
         info.offset = 0
         info.count = flowable.getScenarioData().remaining()
 
@@ -82,13 +83,13 @@ class RetryReaderTest extends APISpec {
 
         def initialResponse = null
         if (provideInitialResponse) {
-            initialResponse = flowable.getter(new RetryReader.HTTPGetterInfo())
+            initialResponse = flowable.getter(new RetryReaderHTTPGetterInfo())
         }
         when:
         RetryReader reader = new RetryReader(initialResponse, info, options,
-                new Function<RetryReader.HTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
+                new Function<RetryReaderHTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
                     @Override
-                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReader.HTTPGetterInfo i) {
+                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReaderHTTPGetterInfo i) {
                         flowable.getter(i)
                     }
                 })
@@ -115,9 +116,9 @@ class RetryReaderTest extends APISpec {
 
         when:
         RetryReader reader = new RetryReader(null, null, options,
-                new Function<RetryReader.HTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
+                new Function<RetryReaderHTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
                     @Override
-                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReader.HTTPGetterInfo i) {
+                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReaderHTTPGetterInfo i) {
                         flowable.getter(i)
                     }
                 })
@@ -147,9 +148,9 @@ class RetryReaderTest extends APISpec {
 
         when:
         RetryReader reader = new RetryReader(null, null, options,
-                new Function<RetryReader.HTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
+                new Function<RetryReaderHTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
                     @Override
-                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReader.HTTPGetterInfo i) {
+                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReaderHTTPGetterInfo i) {
                         flowable.getter(i)
                     }
                 })
@@ -162,7 +163,7 @@ class RetryReaderTest extends APISpec {
         where:
         info                             | options                  | tryNumber
         null                             | new RetryReaderOptions() | 1
-        new RetryReader.HTTPGetterInfo() | null                     | 1
+        new RetryReaderHTTPGetterInfo() | null                     | 1
     }
 
     def "Options fail"() {
@@ -174,9 +175,9 @@ class RetryReaderTest extends APISpec {
 
         when:
         RetryReader reader = new RetryReader(null, null, options,
-                new Function<RetryReader.HTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
+                new Function<RetryReaderHTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
                     @Override
-                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReader.HTTPGetterInfo i) {
+                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReaderHTTPGetterInfo i) {
                         flowable.getter(i)
                     }
                 })
@@ -201,7 +202,7 @@ class RetryReaderTest extends APISpec {
     def "Info"() {
         setup:
         def flowable = new RetryReaderMockFlowable(RetryReaderMockFlowable.RR_TEST_SCENARIO_INFO_TEST)
-        def info = new RetryReader.HTTPGetterInfo()
+        def info = new RetryReaderHTTPGetterInfo()
         info.offset = 20
         info.count = 10
         info.eTag = new ETag("etag")
@@ -210,9 +211,9 @@ class RetryReaderTest extends APISpec {
 
         when:
         RetryReader reader = new RetryReader(null, info, options,
-                new Function<RetryReader.HTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
+                new Function<RetryReaderHTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
                     @Override
-                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReader.HTTPGetterInfo i) {
+                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReaderHTTPGetterInfo i) {
                         flowable.getter(i)
                     }
                 })
@@ -224,14 +225,14 @@ class RetryReaderTest extends APISpec {
 
     def "Info fail"() {
         setup:
-        def info = new RetryReader.HTTPGetterInfo()
+        def info = new RetryReaderHTTPGetterInfo()
         info.count = -1
 
         when:
         new RetryReader(null, info, null,
-                new Function<RetryReader.HTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
+                new Function<RetryReaderHTTPGetterInfo, Single<? extends RestResponse<?, Flowable<ByteBuffer>>>>() {
                     @Override
-                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReader.HTTPGetterInfo i) {
+                    Single<? extends RestResponse<?, Flowable<ByteBuffer>>> apply(RetryReaderHTTPGetterInfo i) {
                         return null
                     }
                 })
