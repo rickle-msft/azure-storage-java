@@ -91,8 +91,6 @@ public abstract class StorageURL {
         return url.toURL();
     }
 
-    // TODO: Move this? Not discoverable.
-
     /**
      * Creates an pipeline to process the HTTP requests and Responses.
      *

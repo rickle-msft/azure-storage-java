@@ -94,6 +94,7 @@ public class BlobURL extends StorageURL {
         try {
             return new BlockBlobURL(new URL(this.storageClient.url()), super.storageClient.httpPipeline());
         } catch (MalformedURLException e) {}
+        // This will never happen because we are positive the storageClientURL is valid
         return null;
     }
 
@@ -108,6 +109,7 @@ public class BlobURL extends StorageURL {
         try {
             return new AppendBlobURL(new URL(this.storageClient.url()), super.storageClient.httpPipeline());
         } catch (MalformedURLException e) {}
+        // This will never happen because we are positive the storageClientURL is valid
         return null;
     }
 
@@ -122,6 +124,7 @@ public class BlobURL extends StorageURL {
         try {
             return new PageBlobURL(new URL(this.storageClient.url()), super.storageClient.httpPipeline());
         } catch (MalformedURLException e) { }
+        // This will never happen because we are positive the storageClientURL is valid
         return null;
     }
 

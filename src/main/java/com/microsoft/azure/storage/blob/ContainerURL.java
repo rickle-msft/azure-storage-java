@@ -69,9 +69,9 @@ public final class ContainerURL extends StorageURL {
     public ContainerURL withPipeline(HttpPipeline pipeline) {
         try {
             return new ContainerURL(new URL(this.storageClient.url()), pipeline);
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
+        } catch (MalformedURLException e) { }
+        // This will never happen because we are positive the storageClientURL is valid
+        return null;
     }
 
     /**
@@ -91,9 +91,9 @@ public final class ContainerURL extends StorageURL {
         try {
             return new BlockBlobURL(StorageURL.appendToURLPath(new URL(this.storageClient.url()), blobName),
                     this.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
+        } catch (MalformedURLException e) {}
+        // This will never happen because we are positive the storageClientURL is valid
+        return null;
     }
 
     /**
@@ -113,9 +113,9 @@ public final class ContainerURL extends StorageURL {
         try {
             return new PageBlobURL(StorageURL.appendToURLPath(new URL(this.storageClient.url()), blobName),
                     this.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
+        } catch (MalformedURLException e) {}
+        // This will never happen because we are positive the storageClientURL is valid
+        return null;
     }
 
     /**
@@ -135,9 +135,9 @@ public final class ContainerURL extends StorageURL {
         try {
             return new AppendBlobURL(StorageURL.appendToURLPath(new URL(this.storageClient.url()), blobName),
                     this.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
+        } catch (MalformedURLException e) {}
+        // This will never happen because we are positive the storageClientURL is valid
+        return null;
     }
 
     /**
@@ -157,9 +157,9 @@ public final class ContainerURL extends StorageURL {
         try {
             return new BlobURL(StorageURL.appendToURLPath(new URL(this.storageClient.url()), blobName),
                     this.storageClient.httpPipeline());
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
+        } catch (MalformedURLException e) {}
+        // This will never happen because we are positive the storageClientURL is valid
+        return null;
     }
 
     /**
@@ -211,7 +211,7 @@ public final class ContainerURL extends StorageURL {
                 !accessConditions.getHttpAccessConditions().getIfNoneMatch().equals(ETag.NONE)) {
             // Throwing is preferred to Single.error because this will error out immediately instead of waiting until
             // subscription.
-            throw new IllegalArgumentException("ETag access conditions are not supported for this API.");
+            throw new UnsupportedOperationException("ETag access conditions are not supported for this API.");
         }
 
         return addErrorWrappingToSingle(this.storageClient.generatedContainers()
@@ -270,7 +270,7 @@ public final class ContainerURL extends StorageURL {
                 accessConditions.getHttpAccessConditions().getIfUnmodifiedSince() != null) {
             // Throwing is preferred to Single.error because this will error out immediately instead of waiting until
             // subscription.
-            throw new IllegalArgumentException(
+            throw new UnsupportedOperationException(
                     "If-Modified-Since is the only HTTP access condition supported for this API");
         }
 
@@ -335,7 +335,7 @@ public final class ContainerURL extends StorageURL {
                 !accessConditions.getHttpAccessConditions().getIfNoneMatch().equals(ETag.NONE)) {
             // Throwing is preferred to Single.error because this will error out immediately instead of waiting until
             // subscription.
-            throw new IllegalArgumentException("ETag access conditions are not supported for this API.");
+            throw new UnsupportedOperationException("ETag access conditions are not supported for this API.");
         }
 
         /*
@@ -396,7 +396,7 @@ public final class ContainerURL extends StorageURL {
         if (!this.validateLeaseOperationAccessConditions(httpAccessConditions)){
             // Throwing is preferred to Single.error because this will error out immediately instead of waiting until
             // subscription.
-            throw new IllegalArgumentException(
+            throw new UnsupportedOperationException(
                     "ETag access conditions are not supported for this API.");
         }
 
@@ -429,7 +429,7 @@ public final class ContainerURL extends StorageURL {
         if (!this.validateLeaseOperationAccessConditions(httpAccessConditions)) {
             // Throwing is preferred to Single.error because this will error out immediately instead of waiting until
             // subscription.
-            throw new IllegalArgumentException(
+            throw new UnsupportedOperationException(
                     "ETag access conditions are not supported for this API.");
         }
 
@@ -462,7 +462,7 @@ public final class ContainerURL extends StorageURL {
         if (!this.validateLeaseOperationAccessConditions(httpAccessConditions)) {
             // Throwing is preferred to Single.error because this will error out immediately instead of waiting until
             // subscription.
-            throw new IllegalArgumentException(
+            throw new UnsupportedOperationException(
                     "ETag access conditions are not supported for this API.");
         }
 
@@ -498,7 +498,7 @@ public final class ContainerURL extends StorageURL {
         if (!this.validateLeaseOperationAccessConditions(httpAccessConditions)) {
             // Throwing is preferred to Single.error because this will error out immediately instead of waiting until
             // subscription.
-            throw new IllegalArgumentException(
+            throw new UnsupportedOperationException(
                     "ETag access conditions are not supported for this API.");
         }
 
@@ -533,7 +533,7 @@ public final class ContainerURL extends StorageURL {
         if (!this.validateLeaseOperationAccessConditions(httpAccessConditions)) {
             // Throwing is preferred to Single.error because this will error out immediately instead of waiting until
             // subscription.
-            throw new IllegalArgumentException(
+            throw new UnsupportedOperationException(
                     "ETag access conditions are not supported for this API.");
         }
 
@@ -606,7 +606,7 @@ public final class ContainerURL extends StorageURL {
             String marker, String delimiter, ListBlobsOptions options) {
         options = options == null ? ListBlobsOptions.DEFAULT : options;
         if (options.getDetails().getSnapshots()) {
-            throw new IllegalArgumentException("Including snapshots in a hierarchical listing is not supported.");
+            throw new UnsupportedOperationException("Including snapshots in a hierarchical listing is not supported.");
         }
 
         return addErrorWrappingToSingle(this.storageClient.generatedContainers()
