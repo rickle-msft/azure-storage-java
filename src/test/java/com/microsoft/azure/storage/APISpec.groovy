@@ -288,7 +288,7 @@ class APISpec extends Specification {
 
 
         cu = primaryServiceURL.createContainerURL(generateContainerName())
-        cu.create(null, null, null).blockingGet()
+        //cu.create(null, null, null).blockingGet()
     }
 
     def cleanup() {

@@ -144,6 +144,7 @@ public final class RequestRetryFactory implements RequestPolicyFactory {
                     return Single.error(e);
                 }
             }
+            requestCopy.withContext(httpRequest.context());
 
             // Deadline stuff
 
@@ -213,7 +214,6 @@ public final class RequestRetryFactory implements RequestPolicyFactory {
                                     primaryTry + 1 : primaryTry;
                             return attemptAsync(httpRequest, newPrimaryTry, considerSecondary,
                                     attempt + 1);
-
                         }
                         return Single.error(throwable);
                     });
@@ -224,6 +224,9 @@ public final class RequestRetryFactory implements RequestPolicyFactory {
     Processes the status code and determines whether or not we should retry based on the statusCode.
      */
     static String processStatusCodeForRetryability(int statusCode, boolean tryingPrimary) {
+        if (statusCode == 201) {
+            return "Retry";
+        }
         if (!tryingPrimary && statusCode == 404) {
             return "Retry: Secondary URL returned 404";
         } else if (statusCode == 503 || statusCode == 500) {

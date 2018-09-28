@@ -36,6 +36,7 @@ class TransferManagerTest extends APISpec {
     def "Upload file"() {
         setup:
         def channel = AsynchronousFileChannel.open(file.toPath())
+
         when:
         // Block length will be ignored for single shot.
         CommonRestResponse response = TransferManager.uploadFileToBlockBlob(channel,
@@ -54,6 +55,30 @@ class TransferManagerTest extends APISpec {
         file                                                  || responseType
         getRandomFile(10)                                     || BlockBlobUploadResponse // Single shot
         getRandomFile(BlockBlobURL.MAX_UPLOAD_BLOB_BYTES + 1) || BlockBlobCommitBlockListResponse // Multi part
+    }
+
+    def "Upload file progress"() {
+        setup:
+        cu = primaryServiceURL.createContainerURL("javaprogresstest")
+        bu = cu.createBlockBlobURL(generateBlobName())
+        def channel = AsynchronousFileChannel.open(getRandomFile(10).toPath())
+
+        when:
+        // Block length will be ignored for single shot.
+        CommonRestResponse response = TransferManager.uploadFileToBlockBlob(channel,
+                bu, (int) (BlockBlobURL.MAX_STAGE_BLOCK_BYTES / 10),
+                new TransferManagerUploadToBlockBlobOptions(new IProgressReceiver() {
+                    @Override
+                    void reportProgress(long bytesTransferred) {
+                        System.out.println(bytesTransferred)
+                    }
+                }, null, null, null, 20)).blockingGet()
+
+        then:
+        validateBasicHeaders(response)
+
+        cleanup:
+        channel.close()
     }
 
     def compareDataToFile(Flowable<ByteBuffer> data, File file) {

@@ -50,18 +50,19 @@ final class ParallelProgressTracker implements IProgressReceiver{
 
     @Override
     public void reportProgress(long bytesTransferred) {
-        long diff = bytesTransferred - this.blockProgress;
-        this.blockProgress =  bytesTransferred;
+        this.blockProgress += bytesTransferred;
+        System.out.println("Block progress: " + this.blockProgress);
+        System.out.println("Bytes transferred: " + bytesTransferred);
 
         /*
         It is typically a bad idea to lock around customer code (which the progressReceiver is) because they could
         never release the lock. However, we have decided that it is sufficiently difficult for them to make their
-        progressReporting code threadsafe that we will take that burden and the ensuing risks. It may be the case
+        progressReporting code threadsafe that we will take that burden and the ensuing risks. Although it is the case
         that only one thread is allowed to be in onNext at once, however there are multiple independent requests
         happening at once to stage/download separate chunks, so we still need to lock either way.
          */
         transferLock.lock();
-        this.totalProgress.addAndGet(diff);
+        this.totalProgress.getAndAdd(bytesTransferred);
         this.progressReceiver.reportProgress(this.totalProgress.get());
         transferLock.unlock();
     }

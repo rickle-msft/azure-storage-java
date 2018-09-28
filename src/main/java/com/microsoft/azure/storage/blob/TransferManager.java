@@ -22,14 +22,11 @@ import com.microsoft.rest.v2.util.FlowableUtil;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Single;
-import javafx.util.Pair;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -81,13 +78,31 @@ public final class TransferManager {
         TransferManagerUploadToBlockBlobOptions optionsReal = options == null ?
                 TransferManagerUploadToBlockBlobOptions.DEFAULT : options;
 
+        // See ParallelProgressTracker for an explanation on why this lock is necessary and why we use AtomicLong.
+        AtomicLong totalProgress = new AtomicLong(0);
+        Lock progressLock = new ReentrantLock();
 
         // If the size of the file can fit in a single upload, do it this way.
         if (file.size() < BlockBlobURL.MAX_UPLOAD_BLOB_BYTES) {
-
             // Transform the specific RestResponse into a CommonRestResponse.
-            return blockBlobURL.upload(FlowableUtil.readFile(file), file.size(), optionsReal.httpHeaders(),
-                    optionsReal.metadata(), optionsReal.accessConditions(), null)
+            Flowable<ByteBuffer> data = FlowableUtil.readFile(file);
+
+            Flowable<ByteBuffer> dataWithProgress;
+            Context context;
+
+            if (optionsReal.progressReceiver() != null) {
+                ParallelProgressTracker progressTracker = new ParallelProgressTracker(
+                        optionsReal.progressReceiver(), progressLock, totalProgress);
+                context = new Context(ProgressReportingFactory.progressContextKey, progressTracker);
+                dataWithProgress = addProgressTracking(data, progressTracker);
+            }
+            else {
+                dataWithProgress = data;
+                context = Context.NONE;
+            }
+
+            return blockBlobURL.upload(dataWithProgress, file.size(), optionsReal.httpHeaders(),
+                    optionsReal.metadata(), optionsReal.accessConditions(), context)
                     .map(CommonRestResponse::createFromPutBlobResponse);
         }
 
@@ -96,10 +111,8 @@ public final class TransferManager {
         if (numBlocks > BlockBlobURL.MAX_BLOCKS) {
             throw new IllegalArgumentException(SR.BLOB_OVER_MAX_BLOCK_LIMIT);
         }
-
-        // See ParallelProgressTracker for an explanation on why this lock is necessary and why we use AtomicLong.
-        AtomicLong totalProgress = new AtomicLong(0);
-        Lock progressLock = new ReentrantLock();
+        System.out.println("Num blocks: " + numBlocks);
+        System.out.println("Block size: " + blockLength);
 
         return Observable.range(0, numBlocks)
                 /*
@@ -118,20 +131,7 @@ public final class TransferManager {
                         ParallelProgressTracker progressTracker = new ParallelProgressTracker(
                                 optionsReal.progressReceiver(), progressLock, totalProgress);
                         context = new Context(ProgressReportingFactory.progressContextKey, progressTracker);
-                        /*
-                        Each time there is a new subscription (almost always because of retries), the entire flow
-                        will restart, meaning we will create a new Tracker as well. This is desired because it will
-                        "rewind" the reported progress instead of eventually reporting more progress than the total
-                        size of the data.
-                         */
-                        dataWithProgress = Single.just(progressTracker)
-                                .flatMapPublisher(tracker ->
-                                        /*
-                                        Every time we emit some data, report it to the Tracker, which will pass it on
-                                        to the end user.
-                                         */
-                                        data.doOnNext(buffer ->
-                                                tracker.reportProgress(buffer.remaining())));
+                        dataWithProgress = addProgressTracking(data, progressTracker);
                     }
                     else {
                         dataWithProgress = data;
@@ -216,11 +216,11 @@ public final class TransferManager {
         Utility.assertNotNull("file", file);
 
         // Get the size of the data and etag if not specified by the user.
-        Single<Pair<Long, BlobAccessConditions>> setupSingle = getSetupSingle(blobURL, r, o);
+        Single<List<Object>> setupSingle = getSetupSingle(blobURL, r, o);
 
         return setupSingle.flatMap(setupPair -> {
-            Long dataSize = setupPair.getKey();
-            BlobAccessConditions realConditions = setupPair.getValue();
+            Long dataSize = (Long)setupPair.get(0);
+            BlobAccessConditions realConditions = (BlobAccessConditions)setupPair.get(1);
 
             int numChunks = calculateNumBlocks(dataSize, o.chunkSize());
 
@@ -254,8 +254,7 @@ public final class TransferManager {
         });
     }
 
-
-    private static Single<Pair<Long, BlobAccessConditions>> getSetupSingle(BlobURL blobURL, BlobRange r,
+    private static Single<List<Object>> getSetupSingle(BlobURL blobURL, BlobRange r,
             TransferManagerDownloadFromBlobOptions o) {
         /*
         Construct a Single which will emit the total count of bytes to be downloaded and retrieve an etag to lock on to
@@ -291,11 +290,26 @@ public final class TransferManager {
                         } else {
                             newCount = r.count();
                         }
-                        return new Pair<>(newCount, newConditions);
+                        return Arrays.asList(newCount, newConditions);
                     });
         } else {
-            return Single.just(new Pair<>(r.count(), o.accessConditions()));
+            return Single.just(Arrays.asList(r.count(), o.accessConditions()));
         }
     }
 
+    private static Flowable<ByteBuffer> addProgressTracking(Flowable<ByteBuffer> data,
+            ParallelProgressTracker progressTracker) {
+        /*
+        Each time there is a new subscription (almost always because of retries), the entire flow will restart, meaning
+        we will create a new Tracker as well. This is desired because it will "rewind" the reported progress instead of
+        eventually reporting more progress than the total size of the data.
+         */
+        return Single.just(progressTracker)
+                .flatMapPublisher(tracker ->
+                        /*
+                        Every time we emit some data, report it to the Tracker, which will pass it on to the end user.
+                         */
+                        data.doOnNext(buffer ->
+                                tracker.reportProgress(buffer.remaining())));
+    }
 }
