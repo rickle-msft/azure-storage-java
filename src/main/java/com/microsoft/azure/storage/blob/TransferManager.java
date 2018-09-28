@@ -29,6 +29,8 @@ import java.nio.channels.AsynchronousFileChannel;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.UUID;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static java.lang.StrictMath.toIntExact;
 
@@ -93,6 +95,10 @@ public final class TransferManager {
             throw new IllegalArgumentException(SR.BLOB_OVER_MAX_BLOCK_LIMIT);
         }
 
+        Long totalProgress = 0L;
+        // See ParallelProgressTracker for an explanation on why this lock is necessary.
+        Lock progressLock = new ReentrantLock();
+
         return Observable.range(0, numBlocks)
                 /*
                 For each block, make a call to stageBlock as follows. concatMap ensures that the items emitted
@@ -103,6 +109,29 @@ public final class TransferManager {
                     int count = Math.min(blockLength, (int) (file.size() - i * blockLength));
                     Flowable<ByteBuffer> data = FlowableUtil.readFile(file, i * blockLength, count);
 
+                    // Report progress as necessary.
+                    Flowable<ByteBuffer> dataWithProgress;
+                    if (optionsReal.progressReceiver() != null) {
+                        /*
+                        Each time there is a new subscription (almost always because of retries), the entire flow
+                        will restart, meaning we will create a new Tracker as well. This is desired because it will
+                        "rewind" the reported progress instead of eventually reporting more progress than the total
+                        size of the data.
+                         */
+                        dataWithProgress = Single.just(new ParallelProgressTracker(optionsReal.progressReceiver(),
+                                progressLock, totalProgress))
+                                .flatMapPublisher(tracker ->
+                                        /*
+                                        Every time we emit some data, report it to the Tracker, which will pass it on
+                                        to the end user.
+                                         */
+                                        data.doOnNext(buffer ->
+                                                tracker.reportProgress(buffer.remaining())));
+                    }
+                    else {
+                        dataWithProgress = data;
+                    }
+
                     final String blockId = Base64.getEncoder().encodeToString(
                             UUID.randomUUID().toString().getBytes());
 
@@ -112,7 +141,7 @@ public final class TransferManager {
                     Turn that into an Observable which emits one item to comply with the signature of
                     concatMapEager.
                      */
-                    return blockBlobURL.stageBlock(blockId, data,
+                    return blockBlobURL.stageBlock(blockId, dataWithProgress,
                             count, optionsReal.accessConditions().leaseAccessConditions(), null)
                             .map(x -> blockId).toObservable();
 
@@ -199,7 +228,6 @@ public final class TransferManager {
                                 dataSize - (i * o.chunkSize()));
                         BlobRange chunkRange = new BlobRange().withOffset(r.offset() + (i * o.chunkSize()))
                                 .withCount(chunkSizeActual);
-
 
                         // Make the download call.
                         return blobURL.download(chunkRange, realConditions, false, null)
