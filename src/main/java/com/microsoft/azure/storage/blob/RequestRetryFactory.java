@@ -156,7 +156,6 @@ public final class RequestRetryFactory implements RequestPolicyFactory {
                     .delaySubscription(delayMs, TimeUnit.MILLISECONDS)
                     .flatMap(response -> {
                         boolean newConsiderSecondary = considerSecondary;
-                        String action;
                         int statusCode = response.statusCode();
 
                         /*
@@ -166,12 +165,10 @@ public final class RequestRetryFactory implements RequestPolicyFactory {
                          */
                         if (!tryingPrimary && statusCode == 404) {
                             newConsiderSecondary = false;
-                            action = "Retry: Secondary URL returned 404";
-                        } else if (statusCode == 503 || statusCode == 500) {
-                            action = "Retry: Temporary error or server timeout";
-                        } else {
-                            action = "NoRetry: Successful HTTP request";
                         }
+
+                        String action = processStatusCodeForRetryability(statusCode, tryingPrimary);
+
                         logf("Action=%s\n", action);
                         if (action.charAt(0) == 'R' && attempt < requestRetryOptions.maxTries()) {
                             /*
@@ -201,20 +198,8 @@ public final class RequestRetryFactory implements RequestPolicyFactory {
                                     "not being replayable. To support retries, all Flowables must produce the " +
                                     "same data for each subscriber. Please ensure this behavior.", throwable));
                         }
-                        String action;
-                        /*
-                        IOException is a catch-all for IO related errors. Technically it includes many types which may
-                        not be network exceptions, but we should not hit those unless there is a bug in our logic. In
-                        either case, it is better to optimistically retry instead of failing too soon.
-                        A Timeout Exception is a client-side timeout coming from Rx.
-                         */
-                        if (throwable instanceof IOException) {
-                            action = "Retry: Network error";
-                        } else if (throwable instanceof TimeoutException) {
-                            action = "Retry: Client timeout";
-                        } else {
-                            action = "NoRetry: Unknown error";
-                        }
+
+                        String action = processExceptionForRetryability(throwable);
 
                         logf("Action=%s\n", action);
                         if (action.charAt(0) == 'R' && attempt < requestRetryOptions.maxTries()) {
@@ -232,6 +217,34 @@ public final class RequestRetryFactory implements RequestPolicyFactory {
                         }
                         return Single.error(throwable);
                     });
+        }
+    }
+
+    /*
+    Processes the status code and determines whether or not we should retry based on the statusCode.
+     */
+    static String processStatusCodeForRetryability(int statusCode, boolean tryingPrimary) {
+        if (!tryingPrimary && statusCode == 404) {
+            return "Retry: Secondary URL returned 404";
+        } else if (statusCode == 503 || statusCode == 500) {
+            return "Retry: Temporary error or server timeout";
+        } else {
+            return "NoRetry: Successful HTTP request";
+        }
+    }
+
+    /*
+    IOException is a catch-all for IO related errors. Technically it includes many types which may not be network
+    exceptions, but we should not hit those unless there is a bug in our logic. In either case, it is better to
+    optimistically retry instead of failing too soon. A Timeout Exception is a client-side timeout coming from Rx.
+     */
+    static String processExceptionForRetryability(Throwable throwable) {
+        if (throwable instanceof IOException) {
+            return "Retry: Network error";
+        } else if (throwable instanceof TimeoutException) {
+            return "Retry: Client timeout";
+        } else {
+            return "NoRetry: Unknown error";
         }
     }
 }

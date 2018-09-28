@@ -23,6 +23,7 @@ import spock.lang.Unroll
 
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.util.concurrent.atomic.AtomicLong
 
 class HelperTest extends APISpec {
 
@@ -627,5 +628,16 @@ class HelperTest extends APISpec {
         parts.sasQueryParameters().resource() == "c"
         parts.sasQueryParameters().signature() ==
                 Utility.safeURLDecode("Ee%2BSodSXamKSzivSdRTqYGh7AeMVEk3wEoRZ1yzkpSc%3D")
+    }
+
+    def "Reference test"() {
+        setup:
+        def var = new AtomicLong(10L)
+        updateLong(var)
+        System.out.println(var)
+    }
+
+    def updateLong(AtomicLong var) {
+        var.addAndGet(10)
     }
 }

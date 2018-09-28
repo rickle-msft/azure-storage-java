@@ -156,6 +156,7 @@ public abstract class StorageURL {
         factories.add(new TelemetryFactory(pipelineOptions.telemetryOptions()));
         factories.add(new RequestIDFactory());
         factories.add(new RequestRetryFactory(pipelineOptions.requestRetryOptions()));
+        factories.add(new ProgressReportingFactory());
         if (!(credentials instanceof AnonymousCredentials)) {
             factories.add(credentials);
         }

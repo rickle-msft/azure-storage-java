@@ -17,6 +17,7 @@ package com.microsoft.azure.storage.blob;
 
 import com.microsoft.azure.storage.blob.models.BlobDownloadHeaders;
 import com.microsoft.azure.storage.blob.models.ModifiedAccessConditions;
+import com.microsoft.rest.v2.Context;
 import com.microsoft.rest.v2.util.FlowableUtil;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
@@ -29,6 +30,7 @@ import java.nio.channels.AsynchronousFileChannel;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -95,8 +97,8 @@ public final class TransferManager {
             throw new IllegalArgumentException(SR.BLOB_OVER_MAX_BLOCK_LIMIT);
         }
 
-        Long totalProgress = 0L;
-        // See ParallelProgressTracker for an explanation on why this lock is necessary.
+        // See ParallelProgressTracker for an explanation on why this lock is necessary and why we use AtomicLong.
+        AtomicLong totalProgress = new AtomicLong(0);
         Lock progressLock = new ReentrantLock();
 
         return Observable.range(0, numBlocks)
@@ -111,15 +113,18 @@ public final class TransferManager {
 
                     // Report progress as necessary.
                     Flowable<ByteBuffer> dataWithProgress;
+                    Context context;
                     if (optionsReal.progressReceiver() != null) {
+                        ParallelProgressTracker progressTracker = new ParallelProgressTracker(
+                                optionsReal.progressReceiver(), progressLock, totalProgress);
+                        context = new Context(ProgressReportingFactory.progressContextKey, progressTracker);
                         /*
                         Each time there is a new subscription (almost always because of retries), the entire flow
                         will restart, meaning we will create a new Tracker as well. This is desired because it will
                         "rewind" the reported progress instead of eventually reporting more progress than the total
                         size of the data.
                          */
-                        dataWithProgress = Single.just(new ParallelProgressTracker(optionsReal.progressReceiver(),
-                                progressLock, totalProgress))
+                        dataWithProgress = Single.just(progressTracker)
                                 .flatMapPublisher(tracker ->
                                         /*
                                         Every time we emit some data, report it to the Tracker, which will pass it on
@@ -130,6 +135,7 @@ public final class TransferManager {
                     }
                     else {
                         dataWithProgress = data;
+                        context = Context.NONE;
                     }
 
                     final String blockId = Base64.getEncoder().encodeToString(
@@ -142,7 +148,7 @@ public final class TransferManager {
                     concatMapEager.
                      */
                     return blockBlobURL.stageBlock(blockId, dataWithProgress,
-                            count, optionsReal.accessConditions().leaseAccessConditions(), null)
+                            count, optionsReal.accessConditions().leaseAccessConditions(), context)
                             .map(x -> blockId).toObservable();
 
                     /*

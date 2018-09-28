@@ -15,6 +15,7 @@
 
 package com.microsoft.azure.storage.blob;
 
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 
 /**
@@ -34,9 +35,13 @@ final class ParallelProgressTracker implements IProgressReceiver{
      */
     private final Lock transferLock;
 
-    private Long totalProgress;
+    /*
+    We need an AtomicLong to be able to update the value referenced. Because we are already synchronizing with the
+    lock, we don't incur any additional performance hit here by the synchronization.
+     */
+    private AtomicLong totalProgress;
 
-    ParallelProgressTracker(IProgressReceiver progressReceiver, Lock lock, Long totalProgress) {
+    ParallelProgressTracker(IProgressReceiver progressReceiver, Lock lock, AtomicLong totalProgress) {
         this.blockProgress = 0;
         this.progressReceiver = progressReceiver;
         this.transferLock = lock;
@@ -51,13 +56,25 @@ final class ParallelProgressTracker implements IProgressReceiver{
         /*
         It is typically a bad idea to lock around customer code (which the progressReceiver is) because they could
         never release the lock. However, we have decided that it is sufficiently difficult for them to make their
-        progressReporting code threadsafe that we will take that burden and the ensuing risks.
+        progressReporting code threadsafe that we will take that burden and the ensuing risks. It may be the case
+        that only one thread is allowed to be in onNext at once, however there are multiple independent requests
+        happening at once to stage/download separate chunks, so we still need to lock either way.
          */
-        // Is this necessary? Is it guaranteed that only one thread is in onNext at a time?
         transferLock.lock();
-        this.totalProgress += diff;
-        this.progressReceiver.reportProgress(this.totalProgress);
+        this.totalProgress.addAndGet(diff);
+        this.progressReceiver.reportProgress(this.totalProgress.get());
         transferLock.unlock();
+    }
 
+    /*
+    This is used in the case of retries to rewind the amount of progress reported. It requires the support of a policy
+    that is closer to the wire than the retry policy in order to anticipate whether a retry is imminent and rewind.
+    Each try has a new instance of this object, so the state of this object will be lost upon resubscribing to the body
+    in the case of a retry, which is why we have to preempt it.
+     */
+    public void rewindProgress() {
+        transferLock.lock();
+        this.totalProgress.addAndGet(-1 * this.blockProgress);
+        transferLock.unlock();
     }
 }
