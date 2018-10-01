@@ -87,22 +87,10 @@ public final class TransferManager {
             // Transform the specific RestResponse into a CommonRestResponse.
             Flowable<ByteBuffer> data = FlowableUtil.readFile(file);
 
-            Flowable<ByteBuffer> dataWithProgress;
-            Context context;
-
-            if (optionsReal.progressReceiver() != null) {
-                ParallelProgressTracker progressTracker = new ParallelProgressTracker(
-                        optionsReal.progressReceiver(), progressLock, totalProgress);
-                context = new Context(ProgressReportingFactory.progressContextKey, progressTracker);
-                dataWithProgress = addProgressTracking(data, progressTracker);
-            }
-            else {
-                dataWithProgress = data;
-                context = Context.NONE;
-            }
+            Flowable<ByteBuffer> dataWithProgress = addProgressTracking(data, optionsReal, progressLock, totalProgress);
 
             return blockBlobURL.upload(dataWithProgress, file.size(), optionsReal.httpHeaders(),
-                    optionsReal.metadata(), optionsReal.accessConditions(), context)
+                    optionsReal.metadata(), optionsReal.accessConditions(), null)
                     .map(CommonRestResponse::createFromPutBlobResponse);
         }
 
@@ -125,18 +113,8 @@ public final class TransferManager {
                     Flowable<ByteBuffer> data = FlowableUtil.readFile(file, i * blockLength, count);
 
                     // Report progress as necessary.
-                    Flowable<ByteBuffer> dataWithProgress;
-                    Context context;
-                    if (optionsReal.progressReceiver() != null) {
-                        ParallelProgressTracker progressTracker = new ParallelProgressTracker(
-                                optionsReal.progressReceiver(), progressLock, totalProgress);
-                        context = new Context(ProgressReportingFactory.progressContextKey, progressTracker);
-                        dataWithProgress = addProgressTracking(data, progressTracker);
-                    }
-                    else {
-                        dataWithProgress = data;
-                        context = Context.NONE;
-                    }
+                    Flowable<ByteBuffer> dataWithProgress = addProgressTracking(data, optionsReal, progressLock,
+                            totalProgress);
 
                     final String blockId = Base64.getEncoder().encodeToString(
                             UUID.randomUUID().toString().getBytes());
@@ -148,7 +126,7 @@ public final class TransferManager {
                     concatMapEager.
                      */
                     return blockBlobURL.stageBlock(blockId, dataWithProgress,
-                            count, optionsReal.accessConditions().leaseAccessConditions(), context)
+                            count, optionsReal.accessConditions().leaseAccessConditions(), null)
                             .map(x -> blockId).toObservable();
 
                     /*
@@ -298,22 +276,29 @@ public final class TransferManager {
     }
 
     private static Flowable<ByteBuffer> addProgressTracking(Flowable<ByteBuffer> data,
-            ParallelProgressTracker progressTracker) {
-        /*
-        Each time there is a new subscription (almost always because of retries), the entire flow will restart, meaning
-        we will create a new Tracker as well. This is desired because it will "rewind" the reported progress instead of
-        eventually reporting more progress than the total size of the data.
-         */
-        return Single.just(progressTracker)
-                .flatMapPublisher(tracker -> {
-                    // Every time there's a subscription, reset the progress that has been tracked for this block.
-                    tracker.rewindProgress();
-                    /*
-                    Every time we emit some data, report it to the Tracker, which will pass it on to the end user.
-                     */
-                    return data.doOnNext(buffer ->
-                                tracker.reportProgress(buffer.remaining()));}
-                );
-
+             TransferManagerUploadToBlockBlobOptions optionsReal, Lock progressLock, AtomicLong totalProgress) {
+        if (optionsReal.progressReceiver() != null) {
+            ParallelProgressTracker progressTracker = new ParallelProgressTracker(
+                    optionsReal.progressReceiver(), progressLock, totalProgress);
+            /*
+            Each time there is a new subscription (almost always because of retries), the entire flow will restart,
+            meaning we will create a new Tracker as well. This is desired because it will "rewind" the reported progress
+            instead of eventually reporting more progress than the total size of the data.
+            */
+            return Single.just(progressTracker)
+                    .flatMapPublisher(tracker -> {
+                        // Every time there's a subscription, reset the progress that has been tracked for this block.
+                        tracker.rewindProgress();
+                        /*
+                        Every time we emit some data, report it to the Tracker, which will pass it on to the end user.
+                         */
+                        return data.doOnNext(buffer ->
+                                tracker.reportProgress(buffer.remaining()));
+                            }
+                    );
+        }
+        else {
+            return data;
+        }
     }
 }
