@@ -76,6 +76,7 @@ final class ParallelProgressTracker implements IProgressReceiver{
     public void rewindProgress() {
         transferLock.lock();
         this.totalProgress.addAndGet(-1 * this.blockProgress);
+        this.blockProgress = 0;
         transferLock.unlock();
     }
 }

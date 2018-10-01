@@ -305,11 +305,15 @@ public final class TransferManager {
         eventually reporting more progress than the total size of the data.
          */
         return Single.just(progressTracker)
-                .flatMapPublisher(tracker ->
-                        /*
-                        Every time we emit some data, report it to the Tracker, which will pass it on to the end user.
-                         */
-                        data.doOnNext(buffer ->
-                                tracker.reportProgress(buffer.remaining())));
+                .flatMapPublisher(tracker -> {
+                    // Every time there's a subscription, reset the progress that has been tracked for this block.
+                    tracker.rewindProgress();
+                    /*
+                    Every time we emit some data, report it to the Tracker, which will pass it on to the end user.
+                     */
+                    return data.doOnNext(buffer ->
+                                tracker.reportProgress(buffer.remaining()));}
+                );
+
     }
 }
