@@ -727,5 +727,13 @@ class TransferManagerTest extends APISpec {
         cleanup:
         channel.close()
     }
+
+    def "Upload from stream"() {
+        when:
+        TransferManager.uploadFromNonReplayableFlowable(Flowable.just(defaultData), bu, null).blockingGet()
+
+        then:
+        FlowableUtil.collectBytesInBuffer(bu.download().blockingGet().body(null)).blockingGet() == defaultData
+    }
 }
 

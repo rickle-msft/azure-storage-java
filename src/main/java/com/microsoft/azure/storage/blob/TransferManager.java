@@ -21,6 +21,10 @@ import com.microsoft.rest.v2.util.FlowableUtil;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Single;
+import io.reactivex.SingleSource;
+import io.reactivex.functions.Function;
+import io.reactivex.functions.Predicate;
+import org.reactivestreams.Publisher;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -285,5 +289,136 @@ public final class TransferManager {
         } else {
             return Single.just(Arrays.asList(r.count(), o.accessConditions()));
         }
+    }
+
+    // xx netBuff could actually be up to MAXINT size because I have no control over that. Leftover for sure has to be able to take whatever is left
+    // xx because if I can't hold all the leftover, then I have no way of getting the next bufferPool buffer.
+    // Maybe I should reverse these and get the network buffer first? But I think that has the same problem of
+    // what if they're really small buffers. I'd need to wait for multiple network buffers to fill the pool buffer to not waste space
+    // Maybe I need to recurse somehow? Basically concat this multiple times? But then the problem kind of just flips again.
+                            /*
+                            Maybe have a method that constructs a Flwoable that reads when pool buffer is larger and another when net buffer is larger and then just recurse into those. May blow up the stack.
+                            Or try to recurse on Flowable.concat(Flowable.just(netBuf), sourceFlowable, so then it will re-emit the one  that I didn't finish to put it at the start of the next pooled buf. May violate the one subscriber idea?
+                             */
+
+    public static Single<CommonRestResponse> uploadFromNonReplayableFlowable(Flowable<ByteBuffer> source, BlockBlobURL blockBlobURL,
+            TransferManagerUploadToBlockBlobOptions options) {
+
+        TransferManagerUploadToBlockBlobOptions optionsReal = options == null ?
+                TransferManagerUploadToBlockBlobOptions.DEFAULT : options;
+        // See ProgressReporter for an explanation on why this lock is necessary and why we use AtomicLong.
+        AtomicLong totalProgress = new AtomicLong(0);
+        Lock progressLock = new ReentrantLock();
+
+        int chunkSize = 50; // Max chunk size is 100MB - stage block bytes. That also upper bounds the leftover holder
+        UploadFromStreamBufferPool pool = new UploadFromStreamBufferPool(1, 50);
+
+        // I think I can use the leftover Buffer here because now I'm ensuring they are all less than the size of a chunk
+        /*
+        Break the source flowable into chunks that are <= chunk size. This makes filling the pooled buffers much easier
+        as we can have a leftover holder that only needs to be as large as a chunk. Presumably n+1 buffers is not much
+        more problematic than n buffers.
+         */
+        Flowable<ByteBuffer> chunkedSource = source.flatMap(buffer -> {
+            if (buffer.remaining() <= chunkSize) {
+                return Flowable.just(buffer);
+            }
+            List<ByteBuffer> smallerChunks = new ArrayList<ByteBuffer>();
+            for (int i=0; i < Math.ceil(buffer.remaining() / (double)chunkSize); i++) {
+                ByteBuffer duplicate = buffer.duplicate();
+                duplicate.position(i * chunkSize);
+                duplicate.limit(Math.min(duplicate.limit(), (i+1) * chunkSize));
+                smallerChunks.add(duplicate);
+            }
+            return Flowable.fromIterable(smallerChunks);
+            // Once the sourceFlowable ends, we tell the pool to complete.
+        }).doOnComplete(pool::sourceComplete);
+
+        ByteBuffer leftoverHolder = ByteBuffer.allocate(chunkSize); // The problem with leftover holder is it's another buffer and it's extra copying. Maybe I can solve that with one of the recursive solutions above, but I don't think so
+
+        return Flowable.fromPublisher(pool)
+                // This flat map call should eventually emit the original buffer, but it should be filled with network data.
+                .flatMapSingle(buffer -> {
+                    // leftoverHolder holds at most chunkSize-1, and buffer can hold a full chunk, so this is always safe.
+                    buffer.put(leftoverHolder);
+                    // We just read all of leftoverHolder, so its position will be the end, and we may need to write to it next, so we have to reset it.
+                    leftoverHolder.position(0);
+                    return chunkedSource.takeUntil(netBuff -> {
+                        // If buffer is almost full, we'll have to save some data in leftoverHolder to put into the next buffer from the pool
+                        if (buffer.remaining() < netBuff.remaining()) {
+                            // Write only as much data as buffer can hold and then return netBuf to it's old limit so we can put the rest in leftoverHolder
+                            int oldLimit = netBuff.limit();
+                            netBuff.limit(buffer.remaining());
+                            buffer.put(netBuff);
+                            netBuff.limit(oldLimit);
+
+                            // Put whatever is left in the leftover holder, then set the position to 0 to make it available for reading.
+                            leftoverHolder.limit(netBuff.remaining());
+                            leftoverHolder.put(netBuff);
+                            leftoverHolder.position(0);
+                        }
+                        else {
+                            // If buffer can hold all the contents of netBuff, copy it over.
+                            buffer.put(netBuff);
+                        }
+                        // If we have filled this buffer, signal to the pool that it should emit a new one.
+                        if (!buffer.hasRemaining()) {
+                            pool.requestBuffer();
+                        }
+                        // Transfer rest to leftoverHolder. Remember to set limit.
+                        // Todo: What about when chunkedSource completes before takeUntil is satisfied. How do I push out the next buffer
+                        // TODO: Maybe BufferPool publisher should actually just be a blocking queue
+                        return !buffer.hasRemaining(); // Stop predicate should return when stopping is desired.
+                    }).ignoreElements().andThen(Single.just(buffer)); // Need to signal to request another buffer. Maybe an anonymous SingleSource that signals and then returns Single.just(buffer)
+                }, false, 1) // MaxConcurrency 1 to ensure that we're only filling one buffer at a time
+                // TODO: Look at Jianghao's solution that avoid's concatMapEager
+                .concatMapEager(buffer -> {
+                    // Report progress as necessary.
+                    Flowable<ByteBuffer> data = ProgressReporter.addParallelProgressReporting(Flowable.just(buffer), optionsReal.progressReceiver(),
+                            progressLock, totalProgress);
+
+                    final String blockId = Base64.getEncoder().encodeToString(
+                            UUID.randomUUID().toString().getBytes());
+
+                    /*
+                    Make a call to stageBlock. Instead of emitting the response, which we don't care about other
+                    than that it was successful, emit the blockId for this request. These will be collected below.
+                    Turn that into an Observable which emits one item to comply with the signature of
+                    concatMapEager.
+                     */
+                    return blockBlobURL.stageBlock(blockId, data,
+                            buffer.remaining(), optionsReal.accessConditions().leaseAccessConditions(), null)
+                            .map(x -> {
+                                pool.returnBuffer(buffer);
+                                return blockId;
+                            }).toFlowable();
+
+                    /*
+                    Specify the number of concurrent subscribers to this map. This determines how many concurrent
+                    rest calls are made. This is so because maxConcurrency is the number of internal subscribers
+                    available to subscribe to the Observables emitted by the source. A subscriber is not released
+                    for a new subscription until its Observable calls onComplete, which here means that the call to
+                    stageBlock is finished. Prefetch is a hint that each of the Observables emitted by the source
+                    will emit only one value, which is true here because we have converted from a Single.
+                     */
+                }, optionsReal.parallelism(), 1)
+                /*
+                collectInto will gather each of the emitted blockIds into a list. Because we used concatMap, the Ids
+                will be emitted according to their block number, which means the list generated here will be
+                properly ordered. This also converts into a Single.
+                 */
+                .collectInto(new ArrayList<String>(), ArrayList::add)
+                /*
+                collectInto will not emit the list until its source calls onComplete. This means that by the time we
+                call stageBlock list, all of the stageBlock calls will have finished. By flatMapping the list, we
+                can "map" it into a call to commitBlockList.
+                */
+                .flatMap(ids ->
+                        blockBlobURL.commitBlockList(ids, optionsReal.httpHeaders(), optionsReal.metadata(),
+                                optionsReal.accessConditions(), null))
+
+                // Finally, we must turn the specific response type into a CommonRestResponse by mapping.
+                .map(CommonRestResponse::createFromPutBlockListResponse);
+
     }
 }
