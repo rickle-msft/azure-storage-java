@@ -15,12 +15,16 @@
 
 package com.microsoft.azure.storage.blob;
 
+import io.reactivex.Flowable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -38,9 +42,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 // TODO: Remember to call limit when filling (so if I don't fill the whole buffer I don't read any garbage at the end) and then reset the position for reading.
 
 // TODO: Change name and documentation to reflect "non-replayable flowable" instead of stream
-final class UploadFromStreamBufferPool implements Publisher<ByteBuffer> {
+final class UploadFromStreamBufferPool {
 
-    private final Queue<ByteBuffer> buffers;
+    private final BlockingQueue<ByteBuffer> buffers;
 
     private final int maxBuffs;
 
@@ -48,79 +52,99 @@ final class UploadFromStreamBufferPool implements Publisher<ByteBuffer> {
 
     private final int buffSize;
 
-    /*
-    It is possible that the request for a buffer (setting this flag to true) and the return of a buffer (potentially
-    setting this flag to false) are on different threads and are happening at the same time.
-     */
-    private AtomicBoolean subscriberWaiting;
+    private ByteBuffer currentBuf;
 
-    private Subscriber<? super ByteBuffer> subscriber = null;
 
     UploadFromStreamBufferPool(int numBuffs, int buffSize) {
-        buffers = new ArrayDeque<>();
+        buffers = new LinkedBlockingQueue<>();
         // Can't be less than 1, etc.
         this.maxBuffs = numBuffs;
 
         // Can't be less than 1, etc.
         this.buffSize = buffSize;
 
-        subscriberWaiting = new AtomicBoolean(false);
-
         ByteBuffer buf = ByteBuffer.allocate(this.buffSize);
         this.numBuffs++;
         buffers.add(buf);
     }
 
+    public Flowable<ByteBuffer> write(ByteBuffer buf) {
+        if (this.currentBuf == null) {
+            this.currentBuf = this.getBuffer();
+        }
+
+        Flowable<ByteBuffer> result;
+
+        if (this.currentBuf.remaining() >= buf.remaining()) {
+            this.currentBuf.put(buf);
+            if (this.currentBuf.remaining() == 0) {
+                this.currentBuf.position(0);
+                result = Flowable.just(this.currentBuf);
+                // This will force us to get a new buffer next time we try to write.
+                this.currentBuf = null;
+            }
+            else {
+                // We are still filling the current buffer.
+                result = Flowable.empty();
+            }
+        }
+        else {
+            // Adjust the window of buf so that we fill up currentBuf.
+            int oldLimit = buf.limit();
+            buf.limit(buf.position() + this.currentBuf.remaining());
+            this.currentBuf.put(buf);
+            // Set the old limit so we can read the rest.
+            buf.limit(oldLimit);
+
+            // Reset the position so we can read the buffer.
+            this.currentBuf.position(0);
+            result =  Flowable.just(this.currentBuf);
+
+            // Get a new buffer and fill it with whatever is left from buf. Note that this relies on the assumption that
+            // the source Flowable has been split up into buffers that are no bigger than chunk size. This assumption
+            // means we'll only have to over flow once, and the buffer we overflow into will not be filled.
+            this.currentBuf = this.getBuffer();
+            this.currentBuf.put(buf);
+        }
+
+        return result;
+    }
+
+    private ByteBuffer getBuffer() {
+        if (this.numBuffs < this.maxBuffs && this.buffers.isEmpty()) {
+            return ByteBuffer.allocate(this.buffSize);
+        }
+        try {
+            return this.buffers.take();
+        }
+        catch (InterruptedException e) {
+            throw new IllegalStateException("UploadFromStream thread interrupted.");
+        }
+    }
+
+    // Where do I call this? Can't do it in onComplete... maybe in an andThen()
+    Flowable<ByteBuffer> flush() {
+        if (this.currentBuf != null) {
+            this.currentBuf.limit(this.currentBuf.position());
+            this.currentBuf.position(0);
+            return Flowable.just(this.currentBuf);
+        }
+        // TODO: double check how I handle these ending conditions
+        return Flowable.empty();
+    }
 
     // Does calling onNext before someone subscribes lose the notification?
-    public void returnBuffer(ByteBuffer b) {
+    void returnBuffer(ByteBuffer b) {
         b.position(0);
-        if (this.subscriberWaiting.get()) {
-            this.subscriber.onNext(b);
-            // TODO: Should this be an atomic getAndSet? Probably.
-            this.subscriberWaiting.set(false);
-        }
-        else {
-            this.buffers.add(b);
-        }
-    }
 
-    // This signals to the pool that the worker copying the stream is ready to start copying into the next buffer.
-    public void requestBuffer() {
-        if (!this.buffers.isEmpty()) {
-            ByteBuffer buff = this.buffers.peek();
-            this.buffers.remove();
-            this.subscriber.onNext(buff);
+        try {
+            this.buffers.put(b);
         }
-        else if (this.numBuffs < this.maxBuffs) {
-            ByteBuffer newBuf = ByteBuffer.allocate(this.buffSize);
-            this.numBuffs++;
-            this.subscriber.onNext(newBuf);
+        catch (InterruptedException e) {
+            throw new IllegalStateException("UploadFromStream thread interrupted.");
         }
-        else {
-            this.subscriberWaiting.set(true);
-        }
-    }
-
-    void sourceComplete() {
-        // Do I need to drain the queue so those buffers can be GC'd?
-        this.subscriber.onComplete();
     }
 
     // TODO: Test by requesting max+1 times and never calling return. We should only get max.
     // Test by requesting max+n times and calling return n times. We should get max+n buffers.
-
-    @Override
-    public void subscribe(Subscriber<? super ByteBuffer> s) {
-        if (this.subscriber != null) {
-            throw new IllegalStateException("Only one subscriber is permitted per pool to preserve concurrency " +
-                    "assumptions");
-        }
-        this.subscriber = s;
-        // This should always be true since we add to the list in the constructor and this gets called next.
-        if (!this.buffers.isEmpty()) {
-            s.onNext(buffers.element());
-            buffers.remove();
-        }
-    }
 }

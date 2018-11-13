@@ -311,7 +311,7 @@ public final class TransferManager {
         Lock progressLock = new ReentrantLock();
 
         int chunkSize = 50; // Max chunk size is 100MB - stage block bytes. That also upper bounds the leftover holder
-        UploadFromStreamBufferPool pool = new UploadFromStreamBufferPool(1, 50);
+        UploadFromStreamBufferPool pool = new UploadFromStreamBufferPool(1, chunkSize);
 
         // I think I can use the leftover Buffer here because now I'm ensuring they are all less than the size of a chunk
         /*
@@ -323,7 +323,7 @@ public final class TransferManager {
             if (buffer.remaining() <= chunkSize) {
                 return Flowable.just(buffer);
             }
-            List<ByteBuffer> smallerChunks = new ArrayList<ByteBuffer>();
+            List<ByteBuffer> smallerChunks = new ArrayList<>();
             for (int i=0; i < Math.ceil(buffer.remaining() / (double)chunkSize); i++) {
                 ByteBuffer duplicate = buffer.duplicate();
                 duplicate.position(i * chunkSize);
@@ -331,46 +331,11 @@ public final class TransferManager {
                 smallerChunks.add(duplicate);
             }
             return Flowable.fromIterable(smallerChunks);
-            // Once the sourceFlowable ends, we tell the pool to complete.
-        }).doOnComplete(pool::sourceComplete);
+        }, false, 1);
 
-        ByteBuffer leftoverHolder = ByteBuffer.allocate(chunkSize); // The problem with leftover holder is it's another buffer and it's extra copying. Maybe I can solve that with one of the recursive solutions above, but I don't think so
+        return chunkedSource.flatMap(pool::write, false, 1)
+                .concatWith(Flowable.defer(pool::flush))
 
-        return Flowable.fromPublisher(pool)
-                // This flat map call should eventually emit the original buffer, but it should be filled with network data.
-                .flatMapSingle(buffer -> {
-                    // leftoverHolder holds at most chunkSize-1, and buffer can hold a full chunk, so this is always safe.
-                    buffer.put(leftoverHolder);
-                    // We just read all of leftoverHolder, so its position will be the end, and we may need to write to it next, so we have to reset it.
-                    leftoverHolder.position(0);
-                    return chunkedSource.takeUntil(netBuff -> {
-                        // If buffer is almost full, we'll have to save some data in leftoverHolder to put into the next buffer from the pool
-                        if (buffer.remaining() < netBuff.remaining()) {
-                            // Write only as much data as buffer can hold and then return netBuf to it's old limit so we can put the rest in leftoverHolder
-                            int oldLimit = netBuff.limit();
-                            netBuff.limit(buffer.remaining());
-                            buffer.put(netBuff);
-                            netBuff.limit(oldLimit);
-
-                            // Put whatever is left in the leftover holder, then set the position to 0 to make it available for reading.
-                            leftoverHolder.limit(netBuff.remaining());
-                            leftoverHolder.put(netBuff);
-                            leftoverHolder.position(0);
-                        }
-                        else {
-                            // If buffer can hold all the contents of netBuff, copy it over.
-                            buffer.put(netBuff);
-                        }
-                        // If we have filled this buffer, signal to the pool that it should emit a new one.
-                        if (!buffer.hasRemaining()) {
-                            pool.requestBuffer();
-                        }
-                        // Transfer rest to leftoverHolder. Remember to set limit.
-                        // Todo: What about when chunkedSource completes before takeUntil is satisfied. How do I push out the next buffer
-                        // TODO: Maybe BufferPool publisher should actually just be a blocking queue
-                        return !buffer.hasRemaining(); // Stop predicate should return when stopping is desired.
-                    }).ignoreElements().andThen(Single.just(buffer)); // Need to signal to request another buffer. Maybe an anonymous SingleSource that signals and then returns Single.just(buffer)
-                }, false, 1) // MaxConcurrency 1 to ensure that we're only filling one buffer at a time
                 // TODO: Look at Jianghao's solution that avoid's concatMapEager
                 .concatMapEager(buffer -> {
                     // Report progress as necessary.
