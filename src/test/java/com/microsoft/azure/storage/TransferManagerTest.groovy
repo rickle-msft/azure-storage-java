@@ -323,6 +323,7 @@ class TransferManagerTest extends APISpec {
     Here we're testing that progress is properly added to a single upload. The size of the file must be less than
     the max upload value.
      */
+
     def "Upload file progress sequential"() {
         setup:
         def channel = AsynchronousFileChannel.open(getRandomFile(BlockBlobURL.MAX_UPLOAD_BLOB_BYTES - 1).toPath())
@@ -349,13 +350,12 @@ class TransferManagerTest extends APISpec {
         _ * mockReceiver.reportProgress(!channel.size()) >> { long bytesTransferred ->
             if (!(bytesTransferred > prevCount)) {
                 throw new IllegalArgumentException("Reported progress should monotonically increase")
-            }
-            else {
+            } else {
                 prevCount = bytesTransferred
             }
         }
 
-        0 * mockReceiver.reportProgress({it > BlockBlobURL.MAX_UPLOAD_BLOB_BYTES - 1})
+        0 * mockReceiver.reportProgress({ it > BlockBlobURL.MAX_UPLOAD_BLOB_BYTES - 1 })
 
         cleanup:
         channel.close()
@@ -386,14 +386,13 @@ class TransferManagerTest extends APISpec {
         (numBlocks - 1.._) * mockReceiver.reportProgress(!channel.size()) >> { long bytesTransferred ->
             if (!(bytesTransferred > prevCount)) {
                 throw new IllegalArgumentException("Reported progress should monotonically increase")
-            }
-            else {
+            } else {
                 prevCount = bytesTransferred
             }
         }
 
         // We should receive no notifications that report more progress than the size of the file.
-        0 * mockReceiver.reportProgress({it > channel.size()})
+        0 * mockReceiver.reportProgress({ it > channel.size() })
         notThrown(IllegalArgumentException)
 
         cleanup:
@@ -421,11 +420,11 @@ class TransferManagerTest extends APISpec {
         outChannel.close() == null
 
         where:
-        file                                   | _
-        getRandomFile(20)                      | _ // small file
-        getRandomFile(16 * 1024 * 1024)        | _ // medium file in several chunks
-        getRandomFile(8 * 1026 * 1024 + 10)   | _ // medium file not aligned to block
-        getRandomFile(0)                       | _ // empty file
+        file                                | _
+        getRandomFile(20)                   | _ // small file
+        getRandomFile(16 * 1024 * 1024)     | _ // medium file in several chunks
+        getRandomFile(8 * 1026 * 1024 + 10) | _ // medium file not aligned to block
+        getRandomFile(0)                    | _ // empty file
         // Files larger than 2GB to test no integer overflow are left to stress/perf tests to keep test passes short.
     }
 
@@ -715,27 +714,48 @@ class TransferManagerTest extends APISpec {
         (numBlocks - 1.._) * mockReceiver.reportProgress(!channel.size()) >> { long bytesTransferred ->
             if (!(bytesTransferred > prevCount)) {
                 throw new IllegalArgumentException("Reported progress should monotonically increase")
-            }
-            else {
+            } else {
                 prevCount = bytesTransferred
             }
         }
 
         // We should receive no notifications that report more progress than the size of the file.
-        0 * mockReceiver.reportProgress({it > fileSize})
+        0 * mockReceiver.reportProgress({ it > fileSize })
 
         cleanup:
         channel.close()
     }
 
+    @Unroll
     def "Upload from stream"() {
         when:
-        def data = getRandomData(350)
-        TransferManager.uploadFromNonReplayableFlowable(Flowable.just(data), bu, null).blockingGet()
+        // Current configuration without print statements was deadlocking.
+        // The interesting bit here is that it's all one giant buffer, so we're kind o... well we chunk up the buffer, so this shouldn't matter actually.
+        // Try commenting out print statements one by one to see which one is causing the delay that unblocks everything
+        // If things are deadlocking, that means that something is never returning a buffer?
+        // Can try doing the same thing as before but with an Iterable?
+        // Maybe there's a race in checking if it's empty? (Multiple threads see not empty and proceed, but there's only one buffer?) Should lock around queue checks/puts/gets to ensure consistency. No. Bad because a get will take the lock and then block and never release it. Maybe don't lock around puts?
+        // I think pool.write() could break because it requires at least two buffers to be safe, but this test only uses one. If it has to spill over into the next buffer, it'll try to get the next one before it returns, so it'll never send off the first buffer, so it'll never get returned.
+        def data = getRandomData(dataSize) // Try increasing the chunk sie in TM, too.
+        TransferManager.uploadFromNonReplayableFlowable(Flowable.just(data), bu, bufferSize, numBuffs, null).blockingGet()
         data.position(0)
 
         then:
         FlowableUtil.collectBytesInBuffer(bu.download().blockingGet().body(null)).blockingGet() == data
+
+        where:
+        dataSize          | bufferSize        | numBuffs
+        350               | 50                | 2
+        350               | 50                | 5
+        10 * 1024 * 1024  | 1 * 1024 * 1024   | 2
+        10 * 1024 * 1024  | 1 * 1024 * 1024   | 5
+        10 * 1024 * 1024  | 1 * 1024 * 1024   | 10
+        500 * 1024 * 1024 | 100 * 1024 * 1024 | 2
+        500 * 1024 * 1024 | 100 * 1024 * 1024 | 4
+        10 * 1024 * 1024  | 3 * 512 * 1024    | 3
+        // Flowables that emit different size data that mess with the boundaries between buffers.
+        // Tests for the BufferPool
+        // Illegal argument for one buffer
     }
 }
 

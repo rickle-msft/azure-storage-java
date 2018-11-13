@@ -302,7 +302,7 @@ public final class TransferManager {
                              */
 
     public static Single<CommonRestResponse> uploadFromNonReplayableFlowable(Flowable<ByteBuffer> source, BlockBlobURL blockBlobURL,
-            TransferManagerUploadToBlockBlobOptions options) {
+            int chunkSize, int numBuffers, TransferManagerUploadToBlockBlobOptions options) {
 
         TransferManagerUploadToBlockBlobOptions optionsReal = options == null ?
                 TransferManagerUploadToBlockBlobOptions.DEFAULT : options;
@@ -310,8 +310,9 @@ public final class TransferManager {
         AtomicLong totalProgress = new AtomicLong(0);
         Lock progressLock = new ReentrantLock();
 
-        int chunkSize = 50; // Max chunk size is 100MB - stage block bytes. That also upper bounds the leftover holder
-        UploadFromStreamBufferPool pool = new UploadFromStreamBufferPool(1, chunkSize);
+        // Max chunk size is 100MB - stage block bytes. That also upper bounds the leftover holder
+        // MinBuffers = 2 because of need to control for overflow
+        UploadFromStreamBufferPool pool = new UploadFromStreamBufferPool(numBuffers, chunkSize);
 
         // I think I can use the leftover Buffer here because now I'm ensuring they are all less than the size of a chunk
         /*

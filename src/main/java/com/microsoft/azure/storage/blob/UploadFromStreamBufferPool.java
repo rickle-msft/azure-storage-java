@@ -16,16 +16,12 @@
 package com.microsoft.azure.storage.blob;
 
 import io.reactivex.Flowable;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.Queue;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * The workflow for this type is as follows: A flowable represents a network stream. Some subscriber will be requesting
@@ -39,8 +35,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * are recycled, so it is up to the buffer-worker to call limit() to avoid uploading any trailing garbage data.
  */
 
-// TODO: Remember to call limit when filling (so if I don't fill the whole buffer I don't read any garbage at the end) and then reset the position for reading.
-
+/**
+ * This type is to support the implementation of uploadFromNonReplaybleFlowable only.
+ */
 // TODO: Change name and documentation to reflect "non-replayable flowable" instead of stream
 final class UploadFromStreamBufferPool {
 
@@ -54,21 +51,21 @@ final class UploadFromStreamBufferPool {
 
     private ByteBuffer currentBuf;
 
-
     UploadFromStreamBufferPool(int numBuffs, int buffSize) {
-        buffers = new LinkedBlockingQueue<>();
-        // Can't be less than 1, etc.
+        buffers = new LinkedBlockingQueue<>(numBuffs);
+        // Can't be less than 2***, etc. Can't be less than 2 because the write method might require two buffers--current and overflow.
         this.maxBuffs = numBuffs;
 
         // Can't be less than 1, etc.
         this.buffSize = buffSize;
 
-        ByteBuffer buf = ByteBuffer.allocate(this.buffSize);
-        this.numBuffs++;
-        buffers.add(buf);
+        buffers.add(ByteBuffer.allocate(this.buffSize));
+        buffers.add(ByteBuffer.allocate(this.buffSize));
+        this.numBuffs = 2;
     }
 
     public Flowable<ByteBuffer> write(ByteBuffer buf) {
+        System.out.println("Write size:" + buf.remaining());
         if (this.currentBuf == null) {
             this.currentBuf = this.getBuffer();
         }
@@ -106,20 +103,26 @@ final class UploadFromStreamBufferPool {
             this.currentBuf = this.getBuffer();
             this.currentBuf.put(buf);
         }
-
+        System.out.println("Finished write");
         return result;
     }
 
     private ByteBuffer getBuffer() {
+        ByteBuffer result;
         if (this.numBuffs < this.maxBuffs && this.buffers.isEmpty()) {
-            return ByteBuffer.allocate(this.buffSize);
+            System.out.println("Allocating buffer. numBuffs:" + this.numBuffs);
+            result = ByteBuffer.allocate(this.buffSize);
+            this.numBuffs++;
         }
-        try {
-            return this.buffers.take();
+        else {
+            try {
+                result = this.buffers.take();
+
+            } catch (InterruptedException e) {
+                throw new IllegalStateException("UploadFromStream thread interrupted." + " Thread:" + Thread.currentThread().getId());
+            }
         }
-        catch (InterruptedException e) {
-            throw new IllegalStateException("UploadFromStream thread interrupted.");
-        }
+        return result;
     }
 
     // Where do I call this? Can't do it in onComplete... maybe in an andThen()
@@ -133,7 +136,6 @@ final class UploadFromStreamBufferPool {
         return Flowable.empty();
     }
 
-    // Does calling onNext before someone subscribes lose the notification?
     void returnBuffer(ByteBuffer b) {
         b.position(0);
 
