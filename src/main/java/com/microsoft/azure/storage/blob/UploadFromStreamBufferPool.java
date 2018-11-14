@@ -36,7 +36,16 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 
 /**
- * This type is to support the implementation of uploadFromNonReplaybleFlowable only.
+ * This type is to support the implementation of uploadFromNonReplaybleFlowable only. It is mandatory that the caller
+ * has broken the source into ByteBuffers that are no greater than the size of a chunk and therefore a buffer in the
+ * pool. This is necessary because it upper bounds the number of buffers we need for a given call to write() to 2. If
+ * the size of ByteBuffer passed into write() were unbounded, the pool could stall as it would run out of buffers before
+ * it is able to return a result, and if it is unable to return, no data can be uploaded and therefore no pools
+ * returned.
+ *
+ * It is incumbent upon the caller to return the buffers after an upload is completed. It is also the caller's
+ * responsibility to signal to the pool when the stream is empty and call flush to return any data still sitting in
+ * the pool.
  */
 // TODO: Change name and documentation to reflect "non-replayable flowable" instead of stream
 final class UploadFromStreamBufferPool {
@@ -52,70 +61,86 @@ final class UploadFromStreamBufferPool {
     private ByteBuffer currentBuf;
 
     UploadFromStreamBufferPool(int numBuffs, int buffSize) {
-        buffers = new LinkedBlockingQueue<>(numBuffs);
-        // Can't be less than 2***, etc. Can't be less than 2 because the write method might require two buffers--current and overflow.
+        /*
+        We require at least two buffers because it is possible that a given write will spill over into a second buffer.
+        We only need one overflow buffer because the max size of a ByteBuffer is assumed to be the size as a buffer in
+        the pool.
+         */
+        Utility.assertInBounds("numBuffs", numBuffs, 2, Integer.MAX_VALUE);
         this.maxBuffs = numBuffs;
+        buffers = new LinkedBlockingQueue<>(numBuffs);
 
-        // Can't be less than 1, etc.
+
+        //These buffers will be used in calls to stageBlock, so they must be no greater than block size.
+        Utility.assertInBounds("buffSize", buffSize, 1, BlockBlobURL.MAX_STAGE_BLOCK_BYTES);
         this.buffSize = buffSize;
 
+        //We prep the queue with two buffers in case there is overflow.
         buffers.add(ByteBuffer.allocate(this.buffSize));
         buffers.add(ByteBuffer.allocate(this.buffSize));
         this.numBuffs = 2;
     }
 
     public Flowable<ByteBuffer> write(ByteBuffer buf) {
-        System.out.println("Write size:" + buf.remaining());
+        // Check if there's a buffer holding any data from a previous call to write. If not, get a new one.
         if (this.currentBuf == null) {
             this.currentBuf = this.getBuffer();
         }
 
         Flowable<ByteBuffer> result;
-
+        // We can fit this whole write in the buffer we currently have.
         if (this.currentBuf.remaining() >= buf.remaining()) {
             this.currentBuf.put(buf);
             if (this.currentBuf.remaining() == 0) {
+                // Reset the position so that we can read the whole thing then return this buffer.
                 this.currentBuf.position(0);
                 result = Flowable.just(this.currentBuf);
                 // This will force us to get a new buffer next time we try to write.
                 this.currentBuf = null;
             }
             else {
-                // We are still filling the current buffer.
+                /*
+                We are still filling the current buffer, so we have no data to return. We will return the buffer once it
+                is filled
+                 */
                 result = Flowable.empty();
             }
         }
+        // We will overflow the current buffer and require another one.
         else {
-            // Adjust the window of buf so that we fill up currentBuf.
+            // Adjust the window of buf so that we fill up currentBuf without going out of bounds.
             int oldLimit = buf.limit();
             buf.limit(buf.position() + this.currentBuf.remaining());
             this.currentBuf.put(buf);
-            // Set the old limit so we can read the rest.
+            // Set the old limit so we can read to the end in the next buffer.
             buf.limit(oldLimit);
 
             // Reset the position so we can read the buffer.
             this.currentBuf.position(0);
             result =  Flowable.just(this.currentBuf);
 
-            // Get a new buffer and fill it with whatever is left from buf. Note that this relies on the assumption that
-            // the source Flowable has been split up into buffers that are no bigger than chunk size. This assumption
-            // means we'll only have to over flow once, and the buffer we overflow into will not be filled.
+            /*
+            Get a new buffer and fill it with whatever is left from buf. Note that this relies on the assumption that
+            the source Flowable has been split up into buffers that are no bigger than chunk size. This assumption
+            means we'll only have to over flow once, and the buffer we overflow into will not be filled. This is the
+            buffer we will write to on the next call to write().
+             */
             this.currentBuf = this.getBuffer();
             this.currentBuf.put(buf);
         }
-        System.out.println("Finished write");
         return result;
     }
 
     private ByteBuffer getBuffer() {
         ByteBuffer result;
-        if (this.numBuffs < this.maxBuffs && this.buffers.isEmpty()) {
-            System.out.println("Allocating buffer. numBuffs:" + this.numBuffs);
+        // There are no buffers in the queue and we have space to allocate one.
+        if (this.buffers.isEmpty() && this.numBuffs < this.maxBuffs) {
             result = ByteBuffer.allocate(this.buffSize);
             this.numBuffs++;
         }
         else {
             try {
+                // If empty, this will wait for an upload to finish and return a buffer.
                 result = this.buffers.take();
 
             } catch (InterruptedException e) {
@@ -125,14 +150,16 @@ final class UploadFromStreamBufferPool {
         return result;
     }
 
-    // Where do I call this? Can't do it in onComplete... maybe in an andThen()
     Flowable<ByteBuffer> flush() {
+        /*
+        Prep and return any data left in the pool. It is important to set the limit so that we don't read beyond the
+        actual data as this buffer may have been used before and therefore may have some garbage at the end.
+         */
         if (this.currentBuf != null) {
             this.currentBuf.limit(this.currentBuf.position());
             this.currentBuf.position(0);
             return Flowable.just(this.currentBuf);
         }
-        // TODO: double check how I handle these ending conditions
         return Flowable.empty();
     }
 

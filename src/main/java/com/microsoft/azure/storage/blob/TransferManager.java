@@ -16,6 +16,7 @@
 package com.microsoft.azure.storage.blob;
 
 import com.microsoft.azure.storage.blob.models.BlobDownloadHeaders;
+import com.microsoft.azure.storage.blob.models.BlockBlobCommitBlockListResponse;
 import com.microsoft.azure.storage.blob.models.ModifiedAccessConditions;
 import com.microsoft.rest.v2.util.FlowableUtil;
 import io.reactivex.Flowable;
@@ -291,18 +292,39 @@ public final class TransferManager {
         }
     }
 
-    // xx netBuff could actually be up to MAXINT size because I have no control over that. Leftover for sure has to be able to take whatever is left
-    // xx because if I can't hold all the leftover, then I have no way of getting the next bufferPool buffer.
-    // Maybe I should reverse these and get the network buffer first? But I think that has the same problem of
-    // what if they're really small buffers. I'd need to wait for multiple network buffers to fill the pool buffer to not waste space
-    // Maybe I need to recurse somehow? Basically concat this multiple times? But then the problem kind of just flips again.
-                            /*
-                            Maybe have a method that constructs a Flwoable that reads when pool buffer is larger and another when net buffer is larger and then just recurse into those. May blow up the stack.
-                            Or try to recurse on Flowable.concat(Flowable.just(netBuf), sourceFlowable, so then it will re-emit the one  that I didn't finish to put it at the start of the next pooled buf. May violate the one subscriber idea?
-                             */
-
-    public static Single<CommonRestResponse> uploadFromNonReplayableFlowable(Flowable<ByteBuffer> source, BlockBlobURL blockBlobURL,
-            int chunkSize, int numBuffers, TransferManagerUploadToBlockBlobOptions options) {
+    /**
+     * Uploads the contents of an arbitrary {@code Flowable} to a block blob. This Flowable need not be replayable and
+     * therefore it may have as its source a network stream or any other data for which the replay behavior is unknown
+     * (non-replayable meaning the Flowable may not return the exact same data on each subscription).
+     *
+     * To eliminate the need for replayability, the client must perform some buffering in order to ensure the actual
+     * data passed to the network is replayable. This is important in order to support retries, which are crucial for
+     * reliable data transfer. Typically, the greater the number of buffers used, the greater the possible parallelism.
+     * Larger buffers means we will have to stage fewer blocks. The tradeoffs between these values are
+     * context-dependent, so some experimentation may be required to optimize inputs for a given scenario.
+     *
+     * Note that buffering must be strictly sequential. Only the upload portion of this operation may be parallelized;
+     * the reads cannot be. Therefore, this method is not as optimal as
+     * {@link #uploadFileToBlockBlob(AsynchronousFileChannel, BlockBlobURL, int, TransferManagerUploadToBlockBlobOptions)}
+     * and if the source is known to be a file, that method should be used instead.
+     *
+     * @param source
+     *         Contains the data to upload. Unlike other upload methods in this library, this method does not require
+     *         that the Flowable be replayable.
+     * @param blockBlobURL
+     *         Points to the blob to which the data should be uploaded.
+     * @param bufferSize
+     *         The size that each buffer used by this method should be. The buffer size also determines the block size
+     *         for the constituent calls to stageBlock.
+     * @param numBuffers
+     *         The maximum number of buffers this method should allocate. Must be at least two.
+     * @param options
+     *         {@link TransferManagerUploadToBlockBlobOptions}
+     * @return Emits the successful response.
+     */
+    public static Single<BlockBlobCommitBlockListResponse> uploadFromNonReplayableFlowable(Flowable<ByteBuffer> source,
+            BlockBlobURL blockBlobURL, int bufferSize, int numBuffers,
+            TransferManagerUploadToBlockBlobOptions options) {
 
         TransferManagerUploadToBlockBlobOptions optionsReal = options == null ?
                 TransferManagerUploadToBlockBlobOptions.DEFAULT : options;
@@ -312,28 +334,30 @@ public final class TransferManager {
 
         // Max chunk size is 100MB - stage block bytes. That also upper bounds the leftover holder
         // MinBuffers = 2 because of need to control for overflow
-        UploadFromStreamBufferPool pool = new UploadFromStreamBufferPool(numBuffers, chunkSize);
+        UploadFromStreamBufferPool pool = new UploadFromStreamBufferPool(numBuffers, bufferSize);
 
-        // I think I can use the leftover Buffer here because now I'm ensuring they are all less than the size of a chunk
         /*
         Break the source flowable into chunks that are <= chunk size. This makes filling the pooled buffers much easier
-        as we can have a leftover holder that only needs to be as large as a chunk. Presumably n+1 buffers is not much
-        more problematic than n buffers.
+        as we can guarantee we only need at most two buffers for any call to write (two in the case of one pool buffer
+        filling up with more data to write)
          */
         Flowable<ByteBuffer> chunkedSource = source.flatMap(buffer -> {
-            if (buffer.remaining() <= chunkSize) {
+            if (buffer.remaining() <= bufferSize) {
                 return Flowable.just(buffer);
             }
             List<ByteBuffer> smallerChunks = new ArrayList<>();
-            for (int i=0; i < Math.ceil(buffer.remaining() / (double)chunkSize); i++) {
+            for (int i=0; i < Math.ceil(buffer.remaining() / (double)bufferSize); i++) {
                 ByteBuffer duplicate = buffer.duplicate();
-                duplicate.position(i * chunkSize);
-                duplicate.limit(Math.min(duplicate.limit(), (i+1) * chunkSize));
+                duplicate.position(i * bufferSize);
+                duplicate.limit(Math.min(duplicate.limit(), (i+1) * bufferSize));
                 smallerChunks.add(duplicate);
             }
             return Flowable.fromIterable(smallerChunks);
         }, false, 1);
 
+        /*
+        Write each buffer from the chunkedSource to the pool and call flush at the end to get the last bits.
+         */
         return chunkedSource.flatMap(pool::write, false, 1)
                 .concatWith(Flowable.defer(pool::flush))
 
@@ -381,10 +405,7 @@ public final class TransferManager {
                 */
                 .flatMap(ids ->
                         blockBlobURL.commitBlockList(ids, optionsReal.httpHeaders(), optionsReal.metadata(),
-                                optionsReal.accessConditions(), null))
-
-                // Finally, we must turn the specific response type into a CommonRestResponse by mapping.
-                .map(CommonRestResponse::createFromPutBlockListResponse);
+                                optionsReal.accessConditions(), null));
 
     }
 }
