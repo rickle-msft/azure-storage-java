@@ -18,10 +18,10 @@
         <version>10</version>
     </parent>
 
-    <artifactId>azure-storage-blob</artifactId>
-    <version>10.1.0</version>
-    <name>Azure Storage Blob</name>
-    <description>The Azure Storage Java Blob library.</description>
+    <artifactId>azure-storage-file</artifactId>
+    <version>10.0.0-Preview</version>
+    <name>Azure Storage File</name>
+    <description>The Azure Storage Java File library.</description>
 
     <licenses>
         <license>
@@ -30,6 +30,12 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+
+    <scm>
+        <url>scm:git:https://github.com/Azure/azure-storage-java</url>
+        <connection>scm:git:git@github.com:Azure/azure-storage-java.git</connection>
+        <tag>HEAD</tag>
+    </scm>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -43,8 +49,58 @@
             <name>Microsoft</name>
         </developer>
     </developers>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>bintray</id>
+            <name>Groovy Bintray</name>
+            <url>https://dl.bintray.com/groovy/maven</url>
+            <releases>
+                <updatePolicy>never</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <repositories>
+        <repository>
+            <id>ossrh</id>
+            <name>Sonatype Snapshots</name>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+            <layout>default</layout>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+            </snapshots>
+        </repository>
+    </repositories>
+
     <dependencies>
-        <!-- The two dependencies are required for mocking in test. -->
+        <dependency>
+            <groupId>com.microsoft.rest.v2</groupId>
+            <artifactId>client-runtime</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.12</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.spockframework</groupId>
+            <artifactId>spock-core</artifactId>
+            <scope>test</scope>
+            <version>1.1-groovy-2.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>2.4.13</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>cglib</groupId>
             <artifactId>cglib-nodep</artifactId>
@@ -58,6 +114,7 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
     <build>
         <testSourceDirectory>src/test/java</testSourceDirectory>
 
