@@ -32,7 +32,6 @@ class DownloadResponseTest extends APISpec {
     This shouldn't really be different from anything else we're doing in the other tests. Just a sanity check against
     a real use case.
      */
-
     def "Network call"() {
         expect:
         FlowableUtil.collectBytesInBuffer(bu.download(null, null, false, null).blockingGet().body(null))
@@ -54,7 +53,7 @@ class DownloadResponseTest extends APISpec {
         def mockRawResponse = flowable.getter(info).blockingGet().rawResponse()
 
         when:
-        DownloadResponse response = new DownloadResponse(mockRawResponse, info, { HTTPGetterInfo newInfo ->
+        DownloadResponse response = new RetryableDownloadResponse(mockRawResponse, info, { HTTPGetterInfo newInfo ->
             flowable.getter(newInfo)
         })
 
@@ -65,9 +64,9 @@ class DownloadResponseTest extends APISpec {
 
         where:
         scenario                                                                 | tryNumber | provideInitialResponse
-        DownloadResponseMockFlowable.RR_TEST_SCENARIO_SUCCESSFUL_ONE_CHUNK       | 1         | false
-        DownloadResponseMockFlowable.RR_TEST_SCENARIO_SUCCESSFUL_MULTI_CHUNK     | 1         | false
-        DownloadResponseMockFlowable.RR_TEST_SCENARIO_SUCCESSFUL_STREAM_FAILURES | 4         | false
+        DownloadResponseMockFlowable.DR_TEST_SCENARIO_SUCCESSFUL_ONE_CHUNK       | 1         | false
+        DownloadResponseMockFlowable.DR_TEST_SCENARIO_SUCCESSFUL_MULTI_CHUNK     | 1         | false
+        DownloadResponseMockFlowable.DR_TEST_SCENARIO_SUCCESSFUL_STREAM_FAILURES | 4         | false
     }
 
     @Unroll
@@ -82,7 +81,7 @@ class DownloadResponseTest extends APISpec {
         def mockRawResponse = flowable.getter(info).blockingGet().rawResponse()
 
         when:
-        DownloadResponse response = new DownloadResponse(mockRawResponse, info, { HTTPGetterInfo newInfo ->
+        DownloadResponse response = new RetryableDownloadResponse(mockRawResponse, info, { HTTPGetterInfo newInfo ->
             flowable.getter(newInfo)
         })
         response.body(options).blockingSubscribe()
@@ -101,19 +100,19 @@ class DownloadResponseTest extends APISpec {
          */
         where:
         scenario                                                           | exceptionType         | tryNumber
-        DownloadResponseMockFlowable.RR_TEST_SCENARIO_MAX_RETRIES_EXCEEDED | IOException           | 7
-        DownloadResponseMockFlowable.RR_TEST_SCENARIO_NON_RETRYABLE_ERROR  | Exception             | 1
-        DownloadResponseMockFlowable.RR_TEST_SCENARIO_ERROR_GETTER_MIDDLE  | StorageErrorException | 2
+        DownloadResponseMockFlowable.DR_TEST_SCENARIO_MAX_RETRIES_EXCEEDED | IOException           | 7
+        DownloadResponseMockFlowable.DR_TEST_SCENARIO_NON_RETRYABLE_ERROR  | Exception             | 1
+        DownloadResponseMockFlowable.DR_TEST_SCENARIO_ERROR_GETTER_MIDDLE  | StorageErrorException | 2
     }
 
     @Unroll
     def "Info null IA"() {
         setup:
         def flowable = new DownloadResponseMockFlowable(
-                DownloadResponseMockFlowable.RR_TEST_SCENARIO_SUCCESSFUL_ONE_CHUNK)
+                DownloadResponseMockFlowable.DR_TEST_SCENARIO_SUCCESSFUL_ONE_CHUNK)
 
         when:
-        new DownloadResponse(flowable.getter(info).blockingGet().rawResponse(), info,
+        new RetryableDownloadResponse(flowable.getter(info).blockingGet().rawResponse(), info,
                 { HTTPGetterInfo newInfo ->
                     flowable.getter(newInfo)
                 })
@@ -138,10 +137,11 @@ class DownloadResponseTest extends APISpec {
 
     def "Getter IA"() {
         setup:
-        def flowable = new DownloadResponseMockFlowable(DownloadResponseMockFlowable.RR_TEST_SCENARIO_SUCCESSFUL_ONE_CHUNK)
+        def flowable = new DownloadResponseMockFlowable(
+                DownloadResponseMockFlowable.DR_TEST_SCENARIO_SUCCESSFUL_ONE_CHUNK)
 
         when:
-        def response = new DownloadResponse(flowable.getter(new HTTPGetterInfo()).blockingGet()
+        def response = new RetryableDownloadResponse(flowable.getter(new HTTPGetterInfo()).blockingGet()
                 .rawResponse(), new HTTPGetterInfo().withETag("etag"), null)
         response.body(null).blockingSubscribe()
 
@@ -151,7 +151,7 @@ class DownloadResponseTest extends APISpec {
 
     def "Info"() {
         setup:
-        def flowable = new DownloadResponseMockFlowable(DownloadResponseMockFlowable.RR_TEST_SCENARIO_INFO_TEST)
+        def flowable = new DownloadResponseMockFlowable(DownloadResponseMockFlowable.DR_TEST_SCENARIO_INFO_TEST)
         def info = new HTTPGetterInfo()
         info.withOffset(20)
         info.withCount(10)
@@ -160,7 +160,7 @@ class DownloadResponseTest extends APISpec {
         options.withMaxRetryRequests(5)
 
         when:
-        def response = new DownloadResponse(flowable.getter(info).blockingGet().rawResponse(), info,
+        def response = new RetryableDownloadResponse(flowable.getter(info).blockingGet().rawResponse(), info,
                 { HTTPGetterInfo newInfo ->
                     return flowable.getter(newInfo)
                 })

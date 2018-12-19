@@ -20,6 +20,59 @@ package com.microsoft.azure.storage.blob;
 final class Constants {
 
     /**
+     * The master Microsoft Azure Storage header prefix.
+     */
+    static final String PREFIX_FOR_STORAGE_HEADER = "x-ms-";
+    /**
+     * Constant representing a kilobyte (Non-SI version).
+     */
+    static final int KB = 1024;
+    /**
+     * Constant representing a megabyte (Non-SI version).
+     */
+    static final int MB = 1024 * KB;
+    /**
+     * An empty {@code String} to use for comparison.
+     */
+    static final String EMPTY_STRING = "";
+    /**
+     * Specifies HTTP.
+     */
+    static final String HTTP = "http";
+    /**
+     * Specifies HTTPS.
+     */
+    static final String HTTPS = "https";
+    /**
+     * Specifies both HTTPS and HTTP.
+     */
+    static final String HTTPS_HTTP = "https,http";
+    /**
+     * The default type for content-type and accept.
+     */
+    static final String UTF8_CHARSET = "UTF-8";
+    /**
+     * The query parameter for snapshots.
+     */
+    static final String SNAPSHOT_QUERY_PARAMETER = "snapshot";
+    /**
+     * The word redacted.
+     */
+    static final String REDACTED = "REDACTED";
+    /**
+     * The default amount of parallelism for TransferManager operations.
+     */
+    // We chose this to match Go, which followed AWS' default.
+    static final int TRANSFER_MANAGER_DEFAULT_PARALLELISM = 5;
+
+    /**
+     * Private Default Ctor
+     */
+    private Constants() {
+        // Private to prevent construction.
+    }
+
+    /**
      * Defines constants for use with HTTP headers.
      */
     static final class HeaderConstants {
@@ -104,6 +157,16 @@ final class Constants {
         static final String RANGE_HEADER_FORMAT = "bytes=%d-%d";
 
         /**
+         * The copy source header.
+         */
+        static final String COPY_SOURCE = "x-ms-copy-source";
+
+        /**
+         * The version header.
+         */
+        static final String VERSION = "x-ms-version";
+
+        /**
          * The current storage version header value.
          */
         static final String TARGET_STORAGE_VERSION = "2018-03-28";
@@ -121,68 +184,97 @@ final class Constants {
         /**
          * Specifies the value to use for UserAgent header.
          */
-        static final String USER_AGENT_VERSION = "10.1.0";
+        static final String USER_AGENT_VERSION = "10.5.0";
 
         private HeaderConstants() {
             // Private to prevent construction.
         }
     }
 
-    /**
-     * The master Microsoft Azure Storage header prefix.
-     */
-    static final String PREFIX_FOR_STORAGE_HEADER = "x-ms-";
+    static final class UrlConstants {
 
-    /**
-     * Constant representing a kilobyte (Non-SI version).
-     */
-    static final int KB = 1024;
+        /**
+         * The SAS service version parameter.
+         */
+        static final String SAS_SERVICE_VERSION = "sv";
 
-    /**
-     * Constant representing a megabyte (Non-SI version).
-     */
-    static final int MB = 1024 * KB;
+        /**
+         * The SAS services parameter.
+         */
+        static final String SAS_SERVICES = "ss";
 
-    /**
-     * An empty {@code String} to use for comparison.
-     */
-    static final String EMPTY_STRING = "";
+        /**
+         * The SAS resource types parameter.
+         */
+        static final String SAS_RESOURCES_TYPES = "srt";
 
-    /**
-     * Specifies HTTP.
-     */
-    static final String HTTP = "http";
+        /**
+         * The SAS protocol parameter.
+         */
+        static final String SAS_PROTOCOL = "spr";
 
-    /**
-     * Specifies HTTPS.
-     */
-    static final String HTTPS = "https";
+        /**
+         * The SAS start time parameter.
+         */
+        static final String SAS_START_TIME = "st";
 
-    /**
-     * Specifies both HTTPS and HTTP.
-     */
-    static final String HTTPS_HTTP = "https,http";
+        /**
+         * The SAS expiration time parameter.
+         */
+        static final String SAS_EXPIRY_TIME = "se";
 
-    /**
-     * The default type for content-type and accept.
-     */
-    static final String UTF8_CHARSET = "UTF-8";
+        /**
+         * The SAS IP range parameter.
+         */
+        static final String SAS_IP_RANGE = "sip";
 
-    /**
-     * The query parameter for snapshots.
-     */
-    static final String SNAPSHOT_QUERY_PARAMETER = "snapshot";
+        /**
+         * The SAS signed identifier parameter.
+         */
+        static final String SAS_SIGNED_IDENTIFIER = "si";
 
-    /**
-     * The default amount of parallelism for TransferManager operations.
-     */
-    // We chose this to match Go, which followed AWS' default.
-    static final int TRANSFER_MANAGER_DEFAULT_PARALLELISM = 5;
+        /**
+         * The SAS signed resource parameter.
+         */
+        static final String SAS_SIGNED_RESOURCE = "sr";
 
-    /**
-     * Private Default Ctor
-     */
-    private Constants() {
-        // Private to prevent construction.
+        /**
+         * The SAS signed permissions parameter.
+         */
+        static final String SAS_SIGNED_PERMISSIONS = "sp";
+
+        /**
+         * The SAS signature parameter.
+         */
+        static final String SAS_SIGNATURE = "sig";
+
+        /**
+         * The SAS cache control parameter.
+         */
+        static final String SAS_CACHE_CONTROL = "rscc";
+
+        /**
+         * The SAS content disposition parameter.
+         */
+        static final String SAS_CONTENT_DISPOSITION = "rscd";
+
+        /**
+         * The SAS content encoding parameter.
+         */
+        static final String SAS_CONTENT_ENCODING = "rsce";
+
+        /**
+         * The SAS content language parameter.
+         */
+        static final String SAS_CONTENT_LANGUAGE = "rscl";
+
+        /**
+         * The SAS content type parameter.
+         */
+        static final String SAS_CONTENT_TYPE = "rsct";
+
+        private UrlConstants() {
+            // Private to prevent construction.
+        }
     }
 }
