@@ -194,6 +194,7 @@ public final class BlobEncryptionPolicy {
                     of downloaded data are in position to be used as the IV for the data actually requested and we are
                     in the desired state.
                      */
+                    // TODO: Make 16 a constant
                     byte[] IV = new byte[16];
                     if(encryptedBlobRange.originalRange().offset() == 0 && encryptedBlobRange.offsetAdjustment() < 16) {
                         IV = encryptionData.contentEncryptionIV();
@@ -226,15 +227,14 @@ public final class BlobEncryptionPolicy {
                         // First, determine if we should update or finalize and fill the output buffer.
 
                         // We will have reached the end of the downloaded range. Finalize.
-                        // TODO: Have to fill in adjustedDownloadCount with ContentLength from download response so this is never null.
-                        if (processedBytes.longValue() + outputSize == encryptedBlobRange.adjustedDownloadCount()) {
+                        if (processedBytes.longValue() + outputSize >= encryptedBlobRange.adjustedDownloadCount()) {
                             decryptedBytes = cipher.doFinal(encryptedByteBuffer, plaintextByteBuffer);
                         }
                         // We will not have reached the end of the downloaded range. Update.
                         else {
                             decryptedBytes = cipher.update(encryptedByteBuffer, plaintextByteBuffer);
                         }
-
+                        plaintextByteBuffer.position(0); // Reset the position after writing.
                         /*
                         Next, determine and set the position of the output buffer.
                         The beginning of this ByteBuffer has not yet reached customer-requested data. i.e. it starts
@@ -270,7 +270,6 @@ public final class BlobEncryptionPolicy {
                          */
 
                         // Finally, determine and set the limit of the output buffer.
-
 
                         long beginningOfEndAdjustment; // read: beginning of end-adjustment.
                         /*

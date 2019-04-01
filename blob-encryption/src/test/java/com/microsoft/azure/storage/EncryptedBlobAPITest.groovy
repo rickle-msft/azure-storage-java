@@ -114,7 +114,7 @@ class EncryptedBlobAPITest extends APISpec {
         then:
         uploadResponse.statusCode() == 201
         downloadResponse.statusCode() == 206
-        byteBuffer.array() == outputByteBuffer.array()
+        byteBuffer == outputByteBuffer
 
         where:
         size            | byteBufferCount   // note
@@ -137,6 +137,9 @@ class EncryptedBlobAPITest extends APISpec {
         5 * KB * KB     | 10                // 16
         5 * KB * KB     | KB                // 17
     }
+
+    // TODO: Document which tests are testing which cases. Ensure that some don't align along blocks. Maybe have a mock flowable that returns some really smally byteBuffers.
+    // Request one byte. Test key resolver. Lots more.
 
     @Unroll
     def "Small blob tests"() {
