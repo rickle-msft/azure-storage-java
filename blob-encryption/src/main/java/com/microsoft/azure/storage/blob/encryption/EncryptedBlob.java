@@ -19,10 +19,8 @@ import io.reactivex.Flowable;
 
 import java.nio.ByteBuffer;
 
-/**
- * RESERVED FOR INTERNAL USE. Represents the encrypted blob and its encrypted data
- */
-public final class EncryptedBlob {
+// TODO: Change name
+final class EncryptedBlob {
 
     /**
      * {@link EncryptionData} to decrypt EncryptedBlob
@@ -42,7 +40,7 @@ public final class EncryptedBlob {
      * @param byteBufferFlowable
      *          A Flowable ByteBuffer
      */
-    public EncryptedBlob(EncryptionData encryptedData, Flowable<ByteBuffer> byteBufferFlowable) {
+    EncryptedBlob(EncryptionData encryptedData, Flowable<ByteBuffer> byteBufferFlowable) {
         this.encryptedData = encryptedData;
         this.byteBufferFlowable = byteBufferFlowable;
     }
@@ -50,14 +48,14 @@ public final class EncryptedBlob {
     /**
      * @return This EncryptedBlob's EncryptedData.
      */
-    public EncryptionData getEncryptionData() {
+    EncryptionData getEncryptionData() {
         return this.encryptedData;
     }
 
     /**
      * @return This EncryptedBlob's Flowable ByteBuffer.
      */
-    public Flowable<ByteBuffer> getByteBufferFlowable() {
+    Flowable<ByteBuffer> getByteBufferFlowable() {
         return this.byteBufferFlowable;
     }
 }

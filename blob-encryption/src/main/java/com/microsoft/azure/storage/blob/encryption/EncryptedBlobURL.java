@@ -90,29 +90,38 @@ public class EncryptedBlobURL extends BlobURL {
 
         final EncryptedBlobRange encryptedBlobRange = new EncryptedBlobRange(range);
 
-        return super.download(encryptedBlobRange.blobRange(), accessConditions,
+        return super.download(encryptedBlobRange.originalRange(), accessConditions,
                 rangeGetContentMD5, context)
                 .map(downloadResponse -> {
-                    if(downloadResponse.headers().contentLength() != null && downloadResponse.headers().contentLength() <= encryptedBlobRange.adjustedOffset()) {
-                        throw new IllegalArgumentException("BlobRange adjustedOffset exceeds the size of the blob");
+                    if(downloadResponse.headers().contentLength() != null && downloadResponse.headers().contentLength()
+                            <= encryptedBlobRange.offsetAdjustment()) {
+                        throw new IllegalArgumentException("BlobRange offsetAdjustment exceeds the size of the blob");
                     }
 
-                    // Calculate encryptedBlobRange.blobRange.adjustedCount
-                    encryptedBlobRange.blobRange().withCount(calculateCount(downloadResponse.headers()));
+                    /*
+                    We need to be able to keep track of when we are at the end of the download, so we can finalize the
+                    cipher, so we set the download count even if it wasn't set by the user.
+                     */
+                    encryptedBlobRange.withAdjustedDownloadCount(calculateCount(downloadResponse.headers()));
 
                     // Calculate padding
                     boolean padding = false;
+                    /*
+                    Page blob writes always align to 512 bytes, which a multiple of the encryption block size, so we
+                    never need to pad.
+                     */
                     if(downloadResponse.headers().blobType() == BlobType.PAGE_BLOB) {
                         padding = false;
                     }
-                    else if(!(encryptedBlobRange.adjustedCount() != null && encryptedBlobRange.adjustedCount()
-                            < blobSize(downloadResponse.headers()) - 16)) {
+                    // If our download includes the last encryption block of the blob, we need to account for padding.
+                    else if(encryptedBlobRange.adjustedDownloadCount() >= blobSize(downloadResponse.headers()) - 16) {
                         padding = true;
                     }
 
                     Flowable<ByteBuffer> decryptedFlowable
                             = this.blobEncryptionPolicy.decryptBlob(downloadResponse.headers().metadata(),
-                            downloadResponse.body(new ReliableDownloadOptions().withMaxRetryRequests(0)), encryptedBlobRange, padding);
+                            downloadResponse.body(new ReliableDownloadOptions().withMaxRetryRequests(0)),
+                            encryptedBlobRange, padding);
 
                     RestResponse<BlobDownloadHeaders, Flowable<ByteBuffer>> restResponse = new RestResponse<>(
                             downloadResponse.rawResponse().request(),

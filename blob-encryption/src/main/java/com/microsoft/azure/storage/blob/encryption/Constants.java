@@ -24,7 +24,7 @@ final class Constants {
 
     static final int MB = 1024 * KB;
 
-    static final String USER_AGENT_VERSION = "10.0.0-Preview";
+    static final String USER_AGENT_VERSION = "11.0.0-Preview";
 
     static final String ENCRYPTION_PROTOCOL_V1 = "1.0";
 

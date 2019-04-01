@@ -18,26 +18,40 @@ package com.microsoft.azure.storage.blob.encryption;
 import com.microsoft.azure.storage.blob.BlobRange;
 
 /**
- * This is a representation of a range of bytes on an encrypted blob, typically used during a download operation. This type is
- * immutable to ensure thread-safety of requests, so changing the values for a different operation requires construction
- * of a new object. Passing null as a EncryptedBlobRange value will default to the entire range of the blob.
+ * This is a representation of a range of bytes on an encrypted blob, which may be expanded from the requested range to
+ * included extra data needed for encryption. This type is immutable to ensure thread-safety of requests. Passing null
+ * as an EncryptedBlobRange value will default to the entire range of the blob.
  */
 final class EncryptedBlobRange {
 
+    private static final int ENCRYPTION_BLOCK_SIZE = 16;
+
     /**
-     * The calculated BlobRange
+     * The BlobRange passed by the customer and the range we must actually return.
      */
     private BlobRange originalRange;
 
     /**
-     * Offset from beginning of BlobRange, 0-31.
+     * Amount the beginning of the range, 0-31, needs to be adjusted in order to align along an encryption block
+     * boundary and include the IV.
      */
-    private long adjustedOffset;
+    private int offsetAdjustment;
 
     /**
-     * How many bytes to decrypt. Must be greater than or equal to 0 if specified.
+     * Amount the end of the range, 0-15, needs to be adjusted in order to align to an encryption block boundary.
      */
-    private Long adjustedCount;
+    private int endAdjustment;
+
+    /**
+     * True if the IV was retrieved in the metadata. False if the blob range had to be expanded to include the IV.
+     */
+    private boolean IvInMetadata = true;
+
+    /**
+     * How many bytes to download, including the adjustments for encryption block boundaries and the IV.
+     * Must be greater than or equal to 0 if specified.
+     */
+    private Long adjustedDownloadCount;
 
     EncryptedBlobRange(BlobRange originalRange) {
         if(originalRange == null) {
@@ -45,109 +59,70 @@ final class EncryptedBlobRange {
             return;
         }
 
-        int encryptionBlockSize = 16;
-        long offset = originalRange.offset();
-        Long count = originalRange.count();
+        this.originalRange = originalRange;
+        this.offsetAdjustment = 0;
+        this.adjustedDownloadCount = this.originalRange.count();
 
-        // calculate adjusted adjustedOffset
+        // Calculate offsetAdjustment.
         if(originalRange.offset() != 0) {
 
-            // align with increment of 16
-            if(originalRange.offset() % encryptionBlockSize != 0) {
-                long diff = offset % encryptionBlockSize;
-                offset -= diff;
-
-                // increment adjustedCount if necessary
-                if(count != null) {
-                    count += diff;
+            // Align with encryption block boundary.
+            if(originalRange.offset() % ENCRYPTION_BLOCK_SIZE != 0) {
+                long diff = this.originalRange.offset() % ENCRYPTION_BLOCK_SIZE;
+                this.offsetAdjustment += diff;
+                if(this.adjustedDownloadCount != null) {
+                    this.adjustedDownloadCount += diff;
                 }
             }
 
-            // account for IV
-            if(offset >= encryptionBlockSize) {
-                offset -= encryptionBlockSize;
-
-                // increment adjustedCount if necessary
-                if(count != null) {
-                    count += encryptionBlockSize;
+            // Account for IV.
+            if(this.originalRange.offset() >= ENCRYPTION_BLOCK_SIZE) {
+                this.offsetAdjustment += ENCRYPTION_BLOCK_SIZE;
+                this.IvInMetadata = false;
+                // Increment adjustedDownloadCount if necessary.
+                if(this.adjustedDownloadCount != null) {
+                    this.adjustedDownloadCount += ENCRYPTION_BLOCK_SIZE;
                 }
             }
         }
 
-        // align adjustedCount with increment of 16
-        if(count != null) {
-            count += encryptionBlockSize - (count % encryptionBlockSize);
+        /*
+        Align adjustedDownloadCount with encryption block boundary at the end of the range. Note that it is impossible
+        to adjust past the end of the blob as an encrypted blob was padded to align to an encryption block boundary.
+         */
+        if(this.adjustedDownloadCount != null) {
+            this.endAdjustment = ENCRYPTION_BLOCK_SIZE - (int)(this.adjustedDownloadCount % ENCRYPTION_BLOCK_SIZE);
+            this.adjustedDownloadCount += this.endAdjustment;
         }
 
-        this.originalRange = new BlobRange().withOffset(offset).withCount(count);
-        this.adjustedOffset = originalRange.offset() - offset;
-        this.adjustedCount = originalRange.count();
     }
 
     /**
      * @return The calculated {@link BlobRange}
      */
-    public BlobRange blobRange() {
+    BlobRange originalRange() {
         return this.originalRange;
     }
 
     /**
      * @return Offset from beginning of BlobRange, 0-31.
      */
-    public long adjustedOffset() {
-        return this.adjustedOffset;
+    int offsetAdjustment() {
+        return this.offsetAdjustment;
     }
 
     /**
      * @return How many bytes to include in the range. Must be greater than or equal to 0 if specified.
      */
-    public Long adjustedCount() {
-        return this.adjustedCount;
+    Long adjustedDownloadCount() {
+        return this.adjustedDownloadCount;
     }
 
     /**
-     * Sets the {@link BlobRange} for this EncryptedBlobRange.
-     *
-     * @param blobRange
-     *          A {@link BlobRange}
-     *
-     * @return this
+     * @param count
+     *         The adjustedDownloadCount
      */
-    public EncryptedBlobRange withBlobRange(BlobRange blobRange) {
-        this.originalRange = blobRange;
-        return this;
-    }
-
-    /**
-     * Sets of adjustedOffset for this EncryptedBlobRange.
-     *
-     * @param adjustedOffset
-     *          Offset from beginning of BlobRange
-     *
-     * @return this
-     */
-    public EncryptedBlobRange withAdjustedOffset(long adjustedOffset) {
-        if (adjustedOffset < 0) {
-            throw new IllegalArgumentException("EncryptedBlobRange adjustedOffset must be greater than or equal to 0.");
-        }
-        this.adjustedOffset = adjustedOffset;
-        return this;
-    }
-
-    /**
-     * Sets the adjustedCount for this EncryptedBlobRange.
-     *
-     * @param adjustedCount
-     *          The number of bytes to decrypt.
-     *
-     * @return this
-     */
-    public EncryptedBlobRange withAdjustedCount(Long adjustedCount) {
-        if (adjustedCount != null && adjustedCount < 0) {
-            throw new IllegalArgumentException(
-                    "EncryptedBlobRange adjustedCount must be greater than or equal to 0 if specified.");
-        }
-        this.adjustedCount = adjustedCount;
-        return this;
+    void withAdjustedDownloadCount(long count) {
+        this.adjustedDownloadCount = count;
     }
 }
