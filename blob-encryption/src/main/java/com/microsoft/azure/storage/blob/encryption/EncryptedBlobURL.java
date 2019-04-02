@@ -108,13 +108,18 @@ public class EncryptedBlobURL extends BlobURL {
                     boolean padding = false;
                     /*
                     Page blob writes always align to 512 bytes, which a multiple of the encryption block size, so we
-                    never need to pad.
+                    never need to pad. Additionally, if the download range happens to end on an encryption block
+                    boundary, we don't need padding. (This is the case where the user specifies the exact begin and
+                    end values of their blob, which they don't know includes padding. Without this check, we would
+                    set padding = true because it's the end of the blob, but we would not download the padding, so
+                    finalizing the cipher would fail.)
                      */
                     if(downloadResponse.headers().blobType() == BlobType.PAGE_BLOB) {
                         padding = false;
                     }
                     // If our download includes the last encryption block of the blob, we need to account for padding.
-                    else if(encryptedBlobRange.adjustedDownloadCount() >= blobSize(downloadResponse.headers()) - 16) {
+                    else if(encryptedBlobRange.toBlobRange().offset() + encryptedBlobRange.toBlobRange().count() >
+                            blobSize(downloadResponse.headers()) - 16) {
                         padding = true;
                     }
 

@@ -18,16 +18,10 @@ package com.microsoft.azure.storage
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.type.CollectionType
 import com.microsoft.azure.keyvault.cryptography.SymmetricKey
-import com.microsoft.azure.storage.blob.AppendBlobURL
-import com.microsoft.azure.storage.blob.BlobRange
-import com.microsoft.azure.storage.blob.BlobURL
-import com.microsoft.azure.storage.blob.DownloadResponse
-import com.microsoft.azure.storage.blob.Metadata
-import com.microsoft.azure.storage.blob.PageBlobURL
+import com.microsoft.azure.storage.blob.*
 import com.microsoft.azure.storage.blob.encryption.BlobEncryptionPolicy
 import com.microsoft.azure.storage.blob.encryption.Constants
 import com.microsoft.azure.storage.blob.encryption.EncryptedBlobURL
-import com.microsoft.azure.storage.blob.BlockBlobURL
 import com.microsoft.azure.storage.blob.encryption.EncryptedBlockBlobURL
 import com.microsoft.azure.storage.blob.models.BlockBlobCommitBlockListResponse
 import com.microsoft.azure.storage.blob.models.PageRange
@@ -42,7 +36,6 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-
 
 class EncryptedBlobAPITest extends APISpec {
     String keyId
@@ -96,9 +89,9 @@ class EncryptedBlobAPITest extends APISpec {
         when:
         ByteBuffer byteBuffer = getRandomData(size)
         ByteBuffer[] byteBufferArray = new ByteBuffer[byteBufferCount]
-        for(def i = 0; i < byteBufferCount; i++) {
+        for (def i = 0; i < byteBufferCount; i++) {
             byteBufferArray[i] = ByteBuffer.wrap(Arrays.copyOfRange(
-                    byteBuffer.array(), i * (int)(size / byteBufferCount), (int)((i + 1) * (size / byteBufferCount))))
+                    byteBuffer.array(), i * (int) (size / byteBufferCount), (int) ((i + 1) * (size / byteBufferCount))))
         }
         Flowable<ByteBuffer> flowable = Flowable.fromArray(byteBufferArray)
 
@@ -117,32 +110,32 @@ class EncryptedBlobAPITest extends APISpec {
         byteBuffer == outputByteBuffer
 
         where:
-        size            | byteBufferCount   // note
-        10              | 1                 // 0
-        10              | 2                 // 1
-        16              | 1                 // 2
-        16              | 2                 // 3
-        20              | 1                 // 4
-        20              | 2                 // 5
-        100             | 1                 // 6
-        100             | 2                 // 7
-        100             | 20                // 8
-        KB              | 1                 // 9
-        KB              | 4                 // 10
-        KB              | 8                 // 11
-        10 * KB         | 1                 // 12
-        10 * KB         | 10                // 13
-        5 * KB * KB     | 1                 // 14
-        5 * KB * KB     | 5                 // 15
-        5 * KB * KB     | 10                // 16
-        5 * KB * KB     | KB                // 17
+        size        | byteBufferCount   // note
+        10          | 1                 // 0
+        10          | 2                 // 1
+        16          | 1                 // 2
+        16          | 2                 // 3
+        20          | 1                 // 4
+        20          | 2                 // 5
+        100         | 1                 // 6
+        100         | 2                 // 7
+        100         | 20                // 8
+        KB          | 1                 // 9
+        KB          | 4                 // 10
+        KB          | 8                 // 11
+        10 * KB     | 1                 // 12
+        10 * KB     | 10                // 13
+        5 * KB * KB | 1                 // 14
+        5 * KB * KB | 5                 // 15
+        5 * KB * KB | 10                // 16
+        5 * KB * KB | KB                // 17
     }
 
     // TODO: Document which tests are testing which cases. Ensure that some don't align along blocks. Maybe have a mock flowable that returns some really smally byteBuffers.
     // Request one byte. Test key resolver. Lots more.
 
     @Unroll
-    def "Small blob tests"() {
+    def "Small blob tests"(int offset, Integer count, int size) {
         when:
         ByteBuffer byteBuffer = getRandomData(size)
 
@@ -158,37 +151,48 @@ class EncryptedBlobAPITest extends APISpec {
         ByteBuffer outputByteBuffer = FlowableUtil.collectBytesInBuffer(
                 downloadResponse.body(null)).blockingGet()
 
-        byte[] expectedByteArray = Arrays.copyOfRange(byteBuffer.array(), (int)offset, (int)(calcUpperBound(offset, count, size)))
-
+        and:
+        def limit
+        if (count != null) {
+            if (count < byteBuffer.capacity()) {
+                limit = offset + count
+            }
+            else {
+                limit = byteBuffer.capacity()
+            }
+        } else {
+            limit = size
+        }
+        byteBuffer.position(offset).limit(limit) // reset the position after the read in upload.
         then:
         uploadResponse.statusCode() == 201
         downloadResponse.statusCode() == 206
-        expectedByteArray == outputByteBuffer.array()
+        byteBuffer == outputByteBuffer
 
         where:
-        offset      | count     | size  // note
-        0L          | null      | 10L   // 0
-        3L          | null      | 10L   // 1
-        0L          | 10L       | 10L   // 2
-        0L          | 16L       | 10L   // 3
-        3L          | 16L       | 10L   // 4
-        0L          | 7L        | 10L   // 5
-        3L          | 7L        | 10L   // 6
-        3L          | 3L        | 10L   // 7
-        0L          | null      | 16L   // 8
-        5L          | null      | 16L   // 9
-        0L          | 16L       | 16L   // 10
-        0L          | 20L       | 16L   // 11
-        5L          | 20L       | 16L   // 12
-        5L          | 11L       | 16L   // 13
-        5L          | 7L        | 16L   // 14
-        0L          | null      | 24L   // 15
-        5L          | null      | 24L   // 16
-        0L          | 24L       | 24L   // 17
-        5L          | 24L       | 24L   // 18
-        0l          | 30L       | 24L   // 19
-        5L          | 19L       | 24L   // 20
-        5L          | 10L       | 24L   // 21
+        offset | count | size  // note
+        0      | null  | 10   // 0
+        3      | null  | 10   // 1
+        0      | 10    | 10   // 2
+        0      | 16    | 10   // 3
+        3      | 16    | 10   // 4
+        0      | 7     | 10   // 5
+        3      | 7     | 10   // 6
+        3      | 3     | 10   // 7
+        0      | null  | 16   // 8
+        5      | null  | 16   // 9
+        0      | 16    | 16   // 10
+        0      | 20    | 16   // 11
+        5      | 20    | 16   // 12
+        5      | 11    | 16   // 13
+        5      | 7     | 16   // 14
+        0      | null  | 24   // 15
+        5      | null  | 24   // 16
+        0      | 24    | 24   // 17
+        5      | 24    | 24   // 18
+        0      | 30    | 24   // 19
+        5      | 19    | 24   // 20
+        5      | 10    | 24   // 21
     }
 
     @Unroll
@@ -207,7 +211,7 @@ class EncryptedBlobAPITest extends APISpec {
         ByteBuffer outputByteBuffer = FlowableUtil.collectBytesInBuffer(
                 downloadResponse.body(null)).blockingGet()
 
-        byte[] expectedByteArray = Arrays.copyOfRange(byteBuffer.array(), (int)offset, (int)(calcUpperBound(offset, count, size)))
+        byte[] expectedByteArray = Arrays.copyOfRange(byteBuffer.array(), (int) offset, (int) (calcUpperBound(offset, count, size)))
 
         then:
         outputByteBuffer.array() == expectedByteArray
@@ -324,58 +328,58 @@ class EncryptedBlobAPITest extends APISpec {
         ByteBuffer outputByteBuffer = FlowableUtil.collectBytesInBuffer(
                 downloadResponse.body(null)).blockingGet()
 
-        byte[] expectedByteArray = Arrays.copyOfRange(decryptedBytes, (int)offset, (int)(calcUpperBound(offset, count, decryptedBytes.length)))
+        byte[] expectedByteArray = Arrays.copyOfRange(decryptedBytes, (int) offset, (int) (calcUpperBound(offset, count, decryptedBytes.length)))
 
         then:
         outputByteBuffer.array() == expectedByteArray
 
         where:
-        offset      | count             // note
-        0           | null              // 0
-        0           | 8                 // 1
-        0           | 16                // 2
-        0           | 24                // 3
-        0           | 500               // 4
-        0           | 16 * 1024         // 5
-        0           | 16 * 1024 + 5     // 6
-        0           | 17 * 1024         // 7
-        8           | null              // 8
-        8           | 8                 // 9
-        8           | 16                // 10
-        8           | 24                // 11
-        8           | 500               // 12
-        8           | 16 * 1024 - 8     // 13
-        8           | 16 * 1024 - 16    // 14
-        8           | 16 * 1024 + 8     // 15
-        8           | 17 * 1024         // 16
-        16          | null              // 17
-        16          | 8                 // 18
-        16          | 16                // 19
-        16          | 24                // 20
-        16          | 500               // 21
-        16          | 16 * 1024 - 16    // 22
-        16          | 16 * 1024 - 24    // 23
-        16          | 16 * 1024         // 24
-        16          | 17 * 1024         // 25
-        24          | null              // 26
-        24          | 8                 // 27
-        24          | 16                // 28
-        24          | 24                // 29
-        24          | 500               // 30
-        24          | 16 * 1024 - 24    // 31
-        24          | 16 * 1024 - 32    // 32
-        24          | 16 * 1024         // 33
-        24          | 17 * 1024         // 34
-        500         | null              // 25
-        500         | 8                 // 36
-        500         | 16                // 37
-        500         | 24                // 38
-        500         | 500               // 39
-        500         | 16 * 1024 - 500   // 40
-        500         | 16 * 1024 - 508   // 41
-        500         | 16 * 1024 - 516   // 42
-        500         | 16 * 1024         // 43
-        500         | 17 * 1024         // 44
+        offset | count             // note
+        0      | null              // 0
+        0      | 8                 // 1
+        0      | 16                // 2
+        0      | 24                // 3
+        0      | 500               // 4
+        0      | 16 * 1024         // 5
+        0      | 16 * 1024 + 5     // 6
+        0      | 17 * 1024         // 7
+        8      | null              // 8
+        8      | 8                 // 9
+        8      | 16                // 10
+        8      | 24                // 11
+        8      | 500               // 12
+        8      | 16 * 1024 - 8     // 13
+        8      | 16 * 1024 - 16    // 14
+        8      | 16 * 1024 + 8     // 15
+        8      | 17 * 1024         // 16
+        16     | null              // 17
+        16     | 8                 // 18
+        16     | 16                // 19
+        16     | 24                // 20
+        16     | 500               // 21
+        16     | 16 * 1024 - 16    // 22
+        16     | 16 * 1024 - 24    // 23
+        16     | 16 * 1024         // 24
+        16     | 17 * 1024         // 25
+        24     | null              // 26
+        24     | 8                 // 27
+        24     | 16                // 28
+        24     | 24                // 29
+        24     | 500               // 30
+        24     | 16 * 1024 - 24    // 31
+        24     | 16 * 1024 - 32    // 32
+        24     | 16 * 1024         // 33
+        24     | 17 * 1024         // 34
+        500    | null              // 25
+        500    | 8                 // 36
+        500    | 16                // 37
+        500    | 24                // 38
+        500    | 500               // 39
+        500    | 16 * 1024 - 500   // 40
+        500    | 16 * 1024 - 508   // 41
+        500    | 16 * 1024 - 516   // 42
+        500    | 16 * 1024         // 43
+        500    | 17 * 1024         // 44
     }
 
     def "Append block decryption test"() {
@@ -412,7 +416,7 @@ class EncryptedBlobAPITest extends APISpec {
     }
 
     def calcUpperBound(Long offset, Long count, Long size) {
-        if(count == null || offset + count > size) {
+        if (count == null || offset + count > size) {
             return size
         }
         return offset + count

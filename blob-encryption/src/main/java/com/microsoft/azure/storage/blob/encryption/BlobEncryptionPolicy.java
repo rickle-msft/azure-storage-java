@@ -125,9 +125,9 @@ public final class BlobEncryptionPolicy {
                             // This should be the only place we allocate memory in encryptBlob()
                             ByteBuffer encryptedTextBuffer = ByteBuffer.allocate(outputSize);
 
-                            int decryptedBytes = cipher.update(plainTextBuffer, encryptedTextBuffer);
+                            int encryptedBytes = cipher.update(plainTextBuffer, encryptedTextBuffer);
                             encryptedTextBuffer.position(0);
-                            encryptedTextBuffer.limit(decryptedBytes);
+                            encryptedTextBuffer.limit(encryptedBytes);
                             return encryptedTextBuffer;
                         });
 
@@ -197,7 +197,8 @@ public final class BlobEncryptionPolicy {
                      */
                     // TODO: Make 16 a constant
                     byte[] IV = new byte[16];
-                    if(encryptedBlobRange.originalRange().offset() == 0 && encryptedBlobRange.offsetAdjustment() < 16) {
+                    // Adjusting the range by <= 16 means we only adjusted to align on an encryption block boundary.
+                    if(encryptedBlobRange.offsetAdjustment() <= 16) {
                         IV = encryptionData.contentEncryptionIV();
                     }
                     Cipher cipher = getCipher(contentEncryptionKey, encryptionData, IV, padding);
