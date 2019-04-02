@@ -125,4 +125,16 @@ final class EncryptedBlobRange {
     void withAdjustedDownloadCount(long count) {
         this.adjustedDownloadCount = count;
     }
+
+    /**
+     * For convenient interaction with the blobURL.download() method.
+     *
+     * @return
+     *        A {@link BlobRange} object which includes the necessary adjustments to offset and count to effectively
+     *        decrypt the blob.
+     */
+    BlobRange toBlobRange() {
+        return new BlobRange().withCount(this.adjustedDownloadCount)
+                .withOffset(this.originalRange.offset() - this.offsetAdjustment);
+    }
 }

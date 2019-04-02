@@ -112,7 +112,8 @@ public final class BlobEncryptionPolicy {
                         EncryptionData encryptionData = new EncryptionData()
                                 .withEncryptionMode(Constants.ENCRYPTION_MODE)
                                 .withEncryptionAgent(
-                                        new EncryptionAgent(Constants.ENCRYPTION_PROTOCOL_V1, EncryptionAlgorithm.AES_CBC_256))
+                                        new EncryptionAgent(Constants.ENCRYPTION_PROTOCOL_V1,
+                                                EncryptionAlgorithm.AES_CBC_256))
                                 .withKeyWrappingMetadata(keyWrappingMetadata)
                                 .withContentEncryptionIV(cipher.getIV())
                                 .withWrappedContentKey(wrappedKey);

@@ -90,7 +90,7 @@ public class EncryptedBlobURL extends BlobURL {
 
         final EncryptedBlobRange encryptedBlobRange = new EncryptedBlobRange(range);
 
-        return super.download(encryptedBlobRange.originalRange(), accessConditions,
+        return super.download(encryptedBlobRange.toBlobRange(), accessConditions,
                 rangeGetContentMD5, context)
                 .map(downloadResponse -> {
                     if(downloadResponse.headers().contentLength() != null && downloadResponse.headers().contentLength()
