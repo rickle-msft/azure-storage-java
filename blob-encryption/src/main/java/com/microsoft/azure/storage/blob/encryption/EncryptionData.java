@@ -20,9 +20,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
 
 /**
- * RESERVED FOR INTERNAL USE. Represents the encryption data that is stored on the service.
+ * Represents the encryption data that is stored on the service.
  */
-public final class EncryptionData {
+final class EncryptionData {
 
     /**
      * The blob encryption mode.
@@ -57,25 +57,26 @@ public final class EncryptionData {
     /**
      * Initializes a new instance of the {@link EncryptionData} class.
      */
-    public EncryptionData() {}
+    public EncryptionData() {
+    }
 
     /**
-     * Initializes a new instance of the {@link EncryptionData} class using the specified wrappedContentKey, encryptionAgent
-     * contentEncryptionIV, and keyWrappingMetadata.
+     * Initializes a new instance of the {@link EncryptionData} class using the specified wrappedContentKey,
+     * encryptionAgent, contentEncryptionIV, and keyWrappingMetadata.
      *
      * @param encryptionMode
-     *                  The blob encryption mode.
+     *         The blob encryption mode.
      * @param wrappedContentKey
-     *                  The {@link WrappedKey}.
+     *         The {@link WrappedKey}.
      * @param encryptionAgent
-     *                  The {@link EncryptionAgent}.
+     *         The {@link EncryptionAgent}.
      * @param contentEncryptionIV
-     *                  The content encryption IV.
+     *         The content encryption IV.
      * @param keyWrappingMetadata
-     *                  Metadata for encryption.
+     *         Metadata for encryption.
      */
     public EncryptionData(String encryptionMode, WrappedKey wrappedContentKey, EncryptionAgent encryptionAgent,
-                          byte[] contentEncryptionIV, Map<String, String> keyWrappingMetadata) {
+            byte[] contentEncryptionIV, Map<String, String> keyWrappingMetadata) {
         this.encryptionMode = encryptionMode;
         this.wrappedContentKey = wrappedContentKey;
         this.encryptionAgent = encryptionAgent;
@@ -95,8 +96,8 @@ public final class EncryptionData {
     /**
      * Gets the wrapped key that is used to store the wrapping algorithm, key identifier and the encrypted key bytes.
      *
-     * @return  A {@link WrappedKey} object that stores the wrapping algorithm, key identifier and the encrypted
-     *          key bytes.
+     * @return A {@link WrappedKey} object that stores the wrapping algorithm, key identifier and the encrypted
+     *         key bytes.
      */
     public WrappedKey wrappedContentKey() {
         return this.wrappedContentKey;
@@ -133,7 +134,7 @@ public final class EncryptionData {
      * Sets the encryption mode
      *
      * @param encryptionMode
-     *              The encryption mode
+     *         The encryption mode
      *
      * @return this
      */
@@ -146,8 +147,8 @@ public final class EncryptionData {
      * Sets the wrapped key that is used to store the wrapping algorithm, key identifier and the encrypted key bytes.
      *
      * @param wrappedContentKey
-     *                  A {@link WrappedKey} object that stores the wrapping algorithm, key identifier and the
-     *                  encrypted key bytes.
+     *         A {@link WrappedKey} object that stores the wrapping algorithm, key identifier and the
+     *         encrypted key bytes.
      *
      * @return this
      */
@@ -160,7 +161,7 @@ public final class EncryptionData {
      * Sets the encryption agent that is used to identify the encryption protocol version and encryption algorithm.
      *
      * @param encryptionAgent
-     *                  The {@link EncryptionAgent}.
+     *         The {@link EncryptionAgent}.
      *
      * @return this
      */
@@ -173,7 +174,7 @@ public final class EncryptionData {
      * Sets the content encryption IV.
      *
      * @param contentEncryptionIV
-     *                  The content encryption IV.
+     *         The content encryption IV.
      *
      * @return this
      */
@@ -186,7 +187,7 @@ public final class EncryptionData {
      * Sets the metadata for encryption.
      *
      * @param keyWrappingMetadata
-     *                  A HashMap containing the encryption metadata in a key-value format.
+     *         A HashMap containing the encryption metadata in a key-value format.
      *
      * @return this
      */

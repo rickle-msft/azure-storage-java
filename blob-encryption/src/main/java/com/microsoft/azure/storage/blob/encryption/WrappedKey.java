@@ -18,7 +18,7 @@ package com.microsoft.azure.storage.blob.encryption;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * RESERVED FOR INTERNAL USE. Represents the envelope key details stored on the service.
+ * Represents the envelope key details stored on the service.
  */
 final class WrappedKey {
 

@@ -27,27 +27,55 @@ import io.reactivex.Single;
 import java.net.URL;
 import java.nio.ByteBuffer;
 
+/**
+ * {@code EncryptedBlobURL} is essentially a {@link BlobURL} that is modified for use with blobs that may have been
+ * encrypted using one of the Storage SDKs client-side encryption features. Specifically, the download method has been
+ * modified to automatically decrypt blobs when appropriate key information is provided.
+ *
+ * NOTE: It is crucially important when working with blobs encrypted via Storage SDKs' client-side encryption that the
+ * Metadata be preserved. Decryption requires the presence of specific metadata values, and data will be unrecoverable
+ * should that metadata be lost or modified.
+ *
+ * Please see the <href a=https://docs.microsoft.com/en-us/azure/storage/common/storage-client-side-encryption-java>Azure Docs</href>
+ * for more details on the Envelope Technique.
+ */
 public class EncryptedBlobURL extends BlobURL {
 
-    protected BlobEncryptionPolicy blobEncryptionPolicy;
+    protected final BlobEncryptionPolicy blobEncryptionPolicy;
 
     /**
-     * Creates a {@code EncryptedBlobURL}
+     * Creates an {@code EncryptedBlobURL}.
      *
      * @param url
-     *          A {@code URL}
+     *          A {@code URL} to an Azure Storage blob.
      * @param pipeline
-     *          A {@code HttpPipeline}
-     * @param blobEncryptionPolicy
-     *          A {@code BlobEncryptionPolicy}
+     *          A {@code HttpPipeline} which configures the behavior of HTTP exchanges. Please refer to
+     *         {@link StorageURL#createPipeline(ICredentials, PipelineOptions)} for more information.
+     * @param encryptionPolicy
+     *          {@link BlobEncryptionPolicy}
      */
-    public EncryptedBlobURL(URL url, HttpPipeline pipeline, BlobEncryptionPolicy blobEncryptionPolicy) {
+    public EncryptedBlobURL(URL url, HttpPipeline pipeline, BlobEncryptionPolicy encryptionPolicy) {
         super(url, pipeline);
-        this.blobEncryptionPolicy = blobEncryptionPolicy;
+        this.blobEncryptionPolicy = encryptionPolicy;
     }
 
     /**
-     * Creates a {@code EncryptedBlobURL}
+     * Creates an {@code EncryptedBlobURL}.
+     *
+     * @param containerURL
+     *         The container which contains the blob.
+     * @param blobName
+     *         The name of the blob.
+     * @param encryptionPolicy
+     *         {@link BlobEncryptionPolicy}
+     */
+    public EncryptedBlobURL(ContainerURL containerURL, String blobName, BlobEncryptionPolicy encryptionPolicy) {
+        super(containerURL.createBlobURL(blobName).toURL(), containerURL.pipeline());
+        this.blobEncryptionPolicy = encryptionPolicy;
+    }
+
+    /**
+     * Creates an {@code EncryptedBlobURL}.
      *
      * @param blobURL
      *          A {@link BlobURL}
@@ -60,8 +88,8 @@ public class EncryptedBlobURL extends BlobURL {
     }
 
     /**
-     * Reads a range of bytes from a blob. The response also includes the blob's properties and metadata. For more
-     * information, see the <a href="https://docs.microsoft.com/rest/api/storageservices/get-blob">Azure Docs</a>.
+     * Reads a range of bytes from a blob and attempts to decrypt as necessary. The response also includes the blob's
+     * properties and metadata. For more information, see the <a href="https://docs.microsoft.com/rest/api/storageservices/get-blob">Azure Docs</a>.
      * <p>
      * Note that the response body has reliable download functionality built in, meaning that a failed download stream
      * will be automatically retried. This behavior may be configured with {@link ReliableDownloadOptions}.
@@ -73,11 +101,11 @@ public class EncryptedBlobURL extends BlobURL {
      * @param rangeGetContentMD5
      *         Whether the contentMD5 for the specified blob range should be returned.
      * @param context
-     *      {@code Context} offers a means of passing arbitrary data (key/value pairs) to an
-     *      {@link com.microsoft.rest.v2.http.HttpPipeline}'s policy objects. Most applications do not need to pass
-     *      arbitrary data to the pipeline and can pass {@code Context.NONE} or {@code null}. Each context object is
-     *      immutable. The {@code withContext} with data method creates a new {@code Context} object that refers to its
-     *      parent, forming a linked list.
+     *         {@code Context} offers a means of passing arbitrary data (key/value pairs) to an
+     *         {@link com.microsoft.rest.v2.http.HttpPipeline}'s policy objects. Most applications do not need to pass
+     *         arbitrary data to the pipeline and can pass {@code Context.NONE} or {@code null}. Each context object is
+     *         immutable. The {@code withContext} with data method creates a new {@code Context} object that refers to
+     *         its parent, forming a linked list.
      *
      * @return Emits the successful response.
      * @apiNote ## Sample Code \n [!code-java[Sample_Code](../azure-storage-java/src/test/java/com/microsoft/azure/storage/Samples.java?name=upload_download
@@ -90,14 +118,8 @@ public class EncryptedBlobURL extends BlobURL {
 
         final EncryptedBlobRange encryptedBlobRange = new EncryptedBlobRange(range);
 
-        return super.download(encryptedBlobRange.toBlobRange(), accessConditions,
-                rangeGetContentMD5, context)
+        return super.download(encryptedBlobRange.toBlobRange(), accessConditions, rangeGetContentMD5, context)
                 .map(downloadResponse -> {
-                    if(downloadResponse.headers().contentLength() != null && downloadResponse.headers().contentLength()
-                            <= encryptedBlobRange.offsetAdjustment()) {
-                        throw new IllegalArgumentException("BlobRange offsetAdjustment exceeds the size of the blob");
-                    }
-
                     /*
                     We need to be able to keep track of when we are at the end of the download, so we can finalize the
                     cipher, so we set the download count even if it wasn't set by the user.
@@ -108,11 +130,7 @@ public class EncryptedBlobURL extends BlobURL {
                     boolean padding = false;
                     /*
                     Page blob writes always align to 512 bytes, which a multiple of the encryption block size, so we
-                    never need to pad. Additionally, if the download range happens to end on an encryption block
-                    boundary, we don't need padding. (This is the case where the user specifies the exact begin and
-                    end values of their blob, which they don't know includes padding. Without this check, we would
-                    set padding = true because it's the end of the blob, but we would not download the padding, so
-                    finalizing the cipher would fail.)
+                    never need to pad.
                      */
                     if(downloadResponse.headers().blobType() == BlobType.PAGE_BLOB) {
                         padding = false;
@@ -123,10 +141,10 @@ public class EncryptedBlobURL extends BlobURL {
                         padding = true;
                     }
 
-                    Flowable<ByteBuffer> decryptedFlowable
-                            = this.blobEncryptionPolicy.decryptBlob(downloadResponse.headers().metadata(),
-                            downloadResponse.body(new ReliableDownloadOptions().withMaxRetryRequests(0)),
-                            encryptedBlobRange, padding);
+
+                    Flowable<ByteBuffer> decryptedFlowable =
+                            this.blobEncryptionPolicy.decryptBlob(downloadResponse.headers().metadata(),
+                            downloadResponse.body(null), encryptedBlobRange, padding);
 
                     RestResponse<BlobDownloadHeaders, Flowable<ByteBuffer>> restResponse = new RestResponse<>(
                             downloadResponse.rawResponse().request(),

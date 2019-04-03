@@ -19,7 +19,6 @@ import io.reactivex.Flowable;
 
 import java.nio.ByteBuffer;
 
-// TODO: Change name
 final class EncryptedBlob {
 
     /**

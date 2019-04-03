@@ -132,7 +132,8 @@ class EncryptedBlobAPITest extends APISpec {
     }
 
     // TODO: Document which tests are testing which cases. Ensure that some don't align along blocks. Maybe have a mock flowable that returns some really smally byteBuffers.
-    // Request one byte. Test key resolver. Lots more.
+    // Request one byte. Test key resolver. Lots more. Require encryption tests (and downloading blobs that aren't encryption, esp. ones that are smaller than what the expanded range would try).
+    // Samples. API refs. Reliable download.
 
     @Unroll
     def "Small blob tests"(int offset, Integer count, int size) {

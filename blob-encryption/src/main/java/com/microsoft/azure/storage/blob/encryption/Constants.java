@@ -42,4 +42,5 @@ final class Constants {
 
     static final String ENCRYPTION_MODE = "FullBlob";
 
+    static final int ENCRYPTION_BLOCK_SIZE = 16;
 }

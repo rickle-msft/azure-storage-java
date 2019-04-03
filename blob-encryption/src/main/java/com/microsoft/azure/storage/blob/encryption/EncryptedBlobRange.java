@@ -17,14 +17,15 @@ package com.microsoft.azure.storage.blob.encryption;
 
 import com.microsoft.azure.storage.blob.BlobRange;
 
+import static com.microsoft.azure.storage.blob.encryption.Constants.ENCRYPTION_BLOCK_SIZE;
+
 /**
  * This is a representation of a range of bytes on an encrypted blob, which may be expanded from the requested range to
- * included extra data needed for encryption. This type is immutable to ensure thread-safety of requests. Passing null
- * as an EncryptedBlobRange value will default to the entire range of the blob.
+ * included extra data needed for encryption. Note that this type is not strictly thread-safe as the download method
+ * will update the count in case the user did not specify one. Passing null as an EncryptedBlobRange value will default
+ * to the entire range of the blob.
  */
 final class EncryptedBlobRange {
-
-    private static final int ENCRYPTION_BLOCK_SIZE = 16;
 
     /**
      * The BlobRange passed by the customer and the range we must actually return.
@@ -36,16 +37,6 @@ final class EncryptedBlobRange {
      * boundary and include the IV.
      */
     private int offsetAdjustment;
-
-    /**
-     * Amount the end of the range, 0-15, needs to be adjusted in order to align to an encryption block boundary.
-     */
-    private int endAdjustment;
-
-    /**
-     * True if the IV was retrieved in the metadata. False if the blob range had to be expanded to include the IV.
-     */
-    private boolean IvInMetadata = true;
 
     /**
      * How many bytes to download, including the adjustments for encryption block boundaries and the IV.
@@ -78,7 +69,6 @@ final class EncryptedBlobRange {
             // Account for IV.
             if(this.originalRange.offset() >= ENCRYPTION_BLOCK_SIZE) {
                 this.offsetAdjustment += ENCRYPTION_BLOCK_SIZE;
-                this.IvInMetadata = false;
                 // Increment adjustedDownloadCount if necessary.
                 if(this.adjustedDownloadCount != null) {
                     this.adjustedDownloadCount += ENCRYPTION_BLOCK_SIZE;
@@ -91,8 +81,8 @@ final class EncryptedBlobRange {
         to adjust past the end of the blob as an encrypted blob was padded to align to an encryption block boundary.
          */
         if(this.adjustedDownloadCount != null) {
-            this.endAdjustment = ENCRYPTION_BLOCK_SIZE - (int)(this.adjustedDownloadCount % ENCRYPTION_BLOCK_SIZE);
-            this.adjustedDownloadCount += this.endAdjustment;
+            this.adjustedDownloadCount += ENCRYPTION_BLOCK_SIZE -
+                    (int)(this.adjustedDownloadCount % ENCRYPTION_BLOCK_SIZE);
         }
 
     }

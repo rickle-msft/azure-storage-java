@@ -37,8 +37,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static com.microsoft.azure.storage.blob.encryption.Constants.ENCRYPTION_BLOCK_SIZE;
+
 /**
  * Represents a blob encryption policy that is used to perform envelope encryption/decryption of Azure storage blobs.
+ * This class is immutable as it is a property on an EncryptedBlobURL, which needs to be thread safe.
  */
 public final class BlobEncryptionPolicy {
     /**
@@ -79,7 +82,7 @@ public final class BlobEncryptionPolicy {
     }
 
     /**
-     * Encrypts given Flowable ByteBuffer.
+     * Encrypts the given Flowable ByteBuffer.
      *
      * @param plainTextFlowable
      *          The Flowable ByteBuffer to be encrypted.
@@ -122,7 +125,12 @@ public final class BlobEncryptionPolicy {
                         Flowable<ByteBuffer> encryptedTextFlowable = plainTextFlowable.map(plainTextBuffer -> {
                             int outputSize = cipher.getOutputSize(plainTextBuffer.remaining());
 
-                            // This should be the only place we allocate memory in encryptBlob()
+                            /*
+                            This should be the only place we allocate memory in encryptBlob(). Although there is an
+                            overload that can encrypt in place that would save allocations, we do not want to overwrite
+                            customer's memory, so we must allocate our own memory. If memory usage becomes unreasonable,
+                            we should implement pooling.
+                             */
                             ByteBuffer encryptedTextBuffer = ByteBuffer.allocate(outputSize);
 
                             int encryptedBytes = cipher.update(plainTextBuffer, encryptedTextBuffer);
@@ -141,6 +149,7 @@ public final class BlobEncryptionPolicy {
                         return new EncryptedBlob(encryptionData, encryptedTextFlowable);
                     });
         }
+        // These are hardcoded and guaranteed to work. There is no reason to propogate a checked exception.
         catch(NoSuchAlgorithmException | NoSuchPaddingException e) {
             throw new RuntimeException(e);
         }
@@ -152,7 +161,7 @@ public final class BlobEncryptionPolicy {
      * @param metadata
      *          The Blob's {@link com.microsoft.azure.storage.blob.Metadata}
      * @param encryptedFlowable
-     *          The encrypted Flowable Bytebuffer to decrypt
+     *          The encrypted Flowable of ByteBuffer to decrypt
      * @param encryptedBlobRange
      *          A {@link EncryptedBlobRange} indicating the range to decrypt
      * @param padding
@@ -162,13 +171,11 @@ public final class BlobEncryptionPolicy {
      */
     Flowable<ByteBuffer> decryptBlob(Map<String, String> metadata, Flowable<ByteBuffer> encryptedFlowable,
                                             EncryptedBlobRange encryptedBlobRange, boolean padding) {
-        // Throw if neither the key nor the key resolver are set.
         if(this.keyWrapper == null && this.keyResolver == null) {
             throw new IllegalArgumentException("Key and KeyResolver cannot both be null");
         }
-        EncryptionData encryptionData = getAndValidateEncryptionData(metadata);
 
-        // RequireEncryption == false and Blob is not encrypted
+        EncryptionData encryptionData = getAndValidateEncryptionData(metadata);
         if(encryptionData == null) {
             if (this.requireEncryption) {
                 throw new IllegalStateException("Require encryption is set to true but the blob is not encrypted.");
@@ -178,7 +185,7 @@ public final class BlobEncryptionPolicy {
             }
         }
 
-        // The number of bytes we have processed so far, not including the Cipher buffer
+        // The number of bytes we have processed so far, not including the Cipher buffer.
         AtomicLong processedBytes = new AtomicLong(0);
 
         return getKeyEncryptionKey(encryptionData)
@@ -195,12 +202,16 @@ public final class BlobEncryptionPolicy {
                     of downloaded data are in position to be used as the IV for the data actually requested and we are
                     in the desired state.
                      */
-                    // TODO: Make 16 a constant
-                    byte[] IV = new byte[16];
-                    // Adjusting the range by <= 16 means we only adjusted to align on an encryption block boundary.
-                    if(encryptedBlobRange.offsetAdjustment() <= 16) {
+                    byte[] IV = new byte[ENCRYPTION_BLOCK_SIZE];
+                    /*
+                    Adjusting the range by <= 16 means we only adjusted to align on an encryption block boundary
+                    (padding will add 1-16 bytes as it will prefer to pad 16 bytes instead of 0) and therefore the key
+                    is in the metadata.
+                     */
+                    if(encryptedBlobRange.offsetAdjustment() <= ENCRYPTION_BLOCK_SIZE) {
                         IV = encryptionData.contentEncryptionIV();
                     }
+
                     Cipher cipher = getCipher(contentEncryptionKey, encryptionData, IV, padding);
 
                     return encryptedFlowable.map(encryptedByteBuffer -> {
@@ -237,8 +248,10 @@ public final class BlobEncryptionPolicy {
                             decryptedBytes = cipher.update(encryptedByteBuffer, plaintextByteBuffer);
                         }
                         plaintextByteBuffer.position(0); // Reset the position after writing.
+
+                        // Next, determine and set the position of the output buffer.
+
                         /*
-                        Next, determine and set the position of the output buffer.
                         The beginning of this ByteBuffer has not yet reached customer-requested data. i.e. it starts
                         somewhere in either the IV or the range adjustment to align on a block boundary. We should
                         advance the position so the customer does not read this data.
@@ -308,7 +321,7 @@ public final class BlobEncryptionPolicy {
                         /*
                         The end of this ByteBuffer is before the end adjustment and after the offset adjustment, so it
                         will lie somewhere in customer requested data. It is possible we allocated a ByteBuffer that is
-                        slightly too large, so we must trim.
+                        slightly too large, so we set the limit equal to exactly the amount we decrypted to be safe.
                          */
                         else if (decryptedBytes + processedBytes.longValue() > encryptedBlobRange.offsetAdjustment()) {
                             plaintextByteBuffer.limit(decryptedBytes);
@@ -318,7 +331,6 @@ public final class BlobEncryptionPolicy {
                         has already been trimmed.
                          */
 
-                        // TODO: NULL checks
                         /*
                         Update processedBytes at the end so we preserve our original start value until we're finished
                         with calculations.
@@ -383,7 +395,8 @@ public final class BlobEncryptionPolicy {
             if(encryptionData == null) {
                 if(this.requireEncryption) {
                     throw new IllegalArgumentException(
-                            "Encryption data does not exist. If you do not want to decrypt the data, please do not set the require encryption flag to true");
+                            "Encryption data does not exist. If you do not want to decrypt the data, please do not " +
+                                    "set the require encryption flag to true");
                 }
                 else {
                     return null;
@@ -397,7 +410,8 @@ public final class BlobEncryptionPolicy {
             // and is able to decrypt.
             if(!Constants.ENCRYPTION_PROTOCOL_V1.equals(encryptionData.encryptionAgent().protocol())) {
                 throw new IllegalArgumentException(String.format(Locale.ROOT,
-                        "Invalid Encryption Agent. This version of the client library does not understand the Encryption Agent set on the queue message: %s",
+                        "Invalid Encryption Agent. This version of the client library does not understand the " +
+                                "Encryption Agent set on the queue message: %s",
                         encryptionData.encryptionAgent()));
             }
             return encryptionData;
@@ -407,7 +421,7 @@ public final class BlobEncryptionPolicy {
     }
 
     /**
-     * Returns the key encryption key for blob.  First tries to get key encryption key from KeyResolver, then
+     * Returns the key encryption key for blob. First tries to get key encryption key from KeyResolver, then
      * falls back to IKey stored on this EncryptionPolicy.
      *
      * @param encryptionData
@@ -416,9 +430,11 @@ public final class BlobEncryptionPolicy {
      * @return Key encryption key as a byte array
      */
     private Single<byte[]> getKeyEncryptionKey(EncryptionData encryptionData) {
-        // 1. Invoke the key resolver if specified to get the key. If the resolver is specified but does not have a
-        // mapping for the key id, an error should be thrown. This is important for key rotation scenario.
-        // 2. If resolver is not specified but a key is specified, match the key id on the key and and use it.
+        /*
+        1. Invoke the key resolver if specified to get the key. If the resolver is specified but does not have a
+        mapping for the key id, an error should be thrown. This is important for key rotation scenario.
+        2. If resolver is not specified but a key is specified, match the key id on the key and and use it.
+        */
 
         Single<IKey> keySingle;
 
@@ -426,9 +442,10 @@ public final class BlobEncryptionPolicy {
             keySingle = Single.fromFuture(this.keyResolver.resolveKeyAsync(encryptionData.wrappedContentKey().keyId()))
                     .onErrorResumeNext(e -> {
                         if(e instanceof NullPointerException) {
-
-                            // keyResolver returns null if it cannot find the key, but RX doesn't allow null values
-                            // passing through workflows, so we propagate this case with an IllegalArguementException
+                            /*
+                            keyResolver returns null if it cannot find the key, but RX throws on null values
+                            passing through workflows, so we propagate this case with an IllegalArgumentException
+                             */
                             return Single.error(new IllegalArgumentException("KeyResolver could not resolve Key"));
                         }
                         else {
@@ -441,7 +458,8 @@ public final class BlobEncryptionPolicy {
                 keySingle = Single.just(this.keyWrapper);
             }
             else {
-                throw new IllegalArgumentException("Key mismatch. The key id stored on the service does not match the specified key.");
+                throw new IllegalArgumentException("Key mismatch. The key id stored on the service does not match " +
+                        "the specified key.");
             }
         }
 
@@ -488,7 +506,8 @@ public final class BlobEncryptionPolicy {
                     return cipher;
                 default:
                     throw new IllegalArgumentException(
-                            "Invalid Encryption Algorithm found on the resource. This version of the client library does not support the specified encryption algorithm.");
+                            "Invalid Encryption Algorithm found on the resource. This version of the client library " +
+                                    "does not support the specified encryption algorithm.");
             }
         }
         catch(NoSuchPaddingException | NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {

@@ -18,8 +18,8 @@ package com.microsoft.azure.storage.blob.encryption;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * RESERVED FOR INTERNAL USE. Represents the encryption agent stored on the service. It consists of the encryption
- * protocol version and encryption algorithm used.
+ * Represents the encryption agent stored on the service. It consists of the encryption protocol version and encryption
+ * algorithm used.
  */
 final class EncryptionAgent {
 
@@ -38,16 +38,17 @@ final class EncryptionAgent {
     /**
      * Initializes a new instance of the {@link EncryptionAgent} class.
      */
-    public EncryptionAgent() {}
+    public EncryptionAgent() {
+    }
 
     /**
      * Initializes a new instance of the {@link EncryptionAgent} class using the specified protocol version and the
      * algorithm.
      *
      * @param protocol
-     *              The encryption protocol version.
+     *         The encryption protocol version.
      * @param algorithm
-     *              The encryption algorithm.
+     *         The encryption algorithm.
      */
     public EncryptionAgent(String protocol, EncryptionAlgorithm algorithm) {
         this.protocol = protocol;
@@ -76,7 +77,7 @@ final class EncryptionAgent {
      * Sets the protocol version used for encryption.
      *
      * @param protocol
-     *              The protocol version used for encryption.
+     *         The protocol version used for encryption.
      *
      * @return this
      */
@@ -89,7 +90,7 @@ final class EncryptionAgent {
      * Sets the algorithm used for encryption.
      *
      * @param algorithm
-     *              The algorithm used for encryption.
+     *         The algorithm used for encryption.
      *
      * @return this
      */
