@@ -56,6 +56,7 @@ public class EncryptedBlobURL extends BlobURL {
      */
     public EncryptedBlobURL(URL url, HttpPipeline pipeline, BlobEncryptionPolicy encryptionPolicy) {
         super(url, pipeline);
+        Utility.assertNotNull("encryptionPolicy", encryptionPolicy);
         this.blobEncryptionPolicy = encryptionPolicy;
     }
 
@@ -71,6 +72,7 @@ public class EncryptedBlobURL extends BlobURL {
      */
     public EncryptedBlobURL(ContainerURL containerURL, String blobName, BlobEncryptionPolicy encryptionPolicy) {
         super(containerURL.createBlobURL(blobName).toURL(), containerURL.pipeline());
+        Utility.assertNotNull("encryptionPolicy", encryptionPolicy);
         this.blobEncryptionPolicy = encryptionPolicy;
     }
 
@@ -79,12 +81,13 @@ public class EncryptedBlobURL extends BlobURL {
      *
      * @param blobURL
      *          A {@link BlobURL}
-     * @param blobEncryptionPolicy
+     * @param encryptionPolicy
      *          A {@link BlobEncryptionPolicy}
      */
-    public EncryptedBlobURL(BlobURL blobURL, BlobEncryptionPolicy blobEncryptionPolicy) {
+    public EncryptedBlobURL(BlobURL blobURL, BlobEncryptionPolicy encryptionPolicy) {
         super(blobURL.toURL(), blobURL.pipeline());
-        this.blobEncryptionPolicy = blobEncryptionPolicy;
+        Utility.assertNotNull("encryptionPolicy", encryptionPolicy);
+        this.blobEncryptionPolicy = encryptionPolicy;
     }
 
     /**

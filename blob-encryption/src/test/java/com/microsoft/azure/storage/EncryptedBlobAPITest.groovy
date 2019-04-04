@@ -23,8 +23,13 @@ import com.microsoft.azure.storage.blob.encryption.BlobEncryptionPolicy
 import com.microsoft.azure.storage.blob.encryption.Constants
 import com.microsoft.azure.storage.blob.encryption.EncryptedBlobURL
 import com.microsoft.azure.storage.blob.encryption.EncryptedBlockBlobURL
+import com.microsoft.azure.storage.blob.models.BlobGetPropertiesResponse
+import com.microsoft.azure.storage.blob.models.BlobHTTPHeaders
 import com.microsoft.azure.storage.blob.models.BlockBlobCommitBlockListResponse
+import com.microsoft.azure.storage.blob.models.LeaseAccessConditions
+import com.microsoft.azure.storage.blob.models.ModifiedAccessConditions
 import com.microsoft.azure.storage.blob.models.PageRange
+import com.microsoft.azure.storage.blob.models.StorageErrorCode
 import com.microsoft.rest.v2.util.FlowableUtil
 import io.reactivex.Flowable
 import spock.lang.Unroll
@@ -36,6 +41,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.security.MessageDigest
 
 class EncryptedBlobAPITest extends APISpec {
     String keyId
@@ -66,43 +72,42 @@ class EncryptedBlobAPITest extends APISpec {
         encryptedBlockBlobURL = new EncryptedBlockBlobURL(blockBlobURL, blobEncryptionPolicy)
     }
 
-    def "Actually encrypting test"() {
+    def "Encryption not a no-op"() {
         when:
         ByteBuffer byteBuffer = getRandomData(Constants.KB)
         Flowable<ByteBuffer> flowable = Flowable.just(byteBuffer)
 
-        encryptedBlockBlobURL.upload(
-                flowable, null, null, null).blockingGet()
+        encryptedBlockBlobURL.upload(flowable).blockingGet()
 
-        DownloadResponse downloadResponse = blockBlobURL.download(
-                null, null, false, null).blockingGet()
+        DownloadResponse downloadResponse = blockBlobURL.download().blockingGet()
 
-        ByteBuffer outputByteBuffer = FlowableUtil.collectBytesInBuffer(
-                downloadResponse.body(null)).blockingGet()
+        ByteBuffer outputByteBuffer = FlowableUtil.collectBytesInBuffer(downloadResponse.body(null)).blockingGet()
 
         then:
         outputByteBuffer.array() != byteBuffer.array()
     }
 
     @Unroll
-    def "Full Decrypt"() {
+    def "Encryption"() {
         when:
         ByteBuffer byteBuffer = getRandomData(size)
         ByteBuffer[] byteBufferArray = new ByteBuffer[byteBufferCount]
+
+        /*
+        Sending a sequence of buffers allows us to test encryption behavior in different cases when the buffers do
+        or do not align on encryption boundaries.
+         */
         for (def i = 0; i < byteBufferCount; i++) {
             byteBufferArray[i] = ByteBuffer.wrap(Arrays.copyOfRange(
                     byteBuffer.array(), i * (int) (size / byteBufferCount), (int) ((i + 1) * (size / byteBufferCount))))
         }
         Flowable<ByteBuffer> flowable = Flowable.fromArray(byteBufferArray)
 
-        BlockBlobCommitBlockListResponse uploadResponse = encryptedBlockBlobURL.upload(
-                flowable, null, null, null).blockingGet()
+        BlockBlobCommitBlockListResponse uploadResponse = encryptedBlockBlobURL.upload(flowable).blockingGet()
 
-        DownloadResponse downloadResponse = encryptedBlockBlobURL.download(
-                null, null, false, null).blockingGet()
+        DownloadResponse downloadResponse = encryptedBlockBlobURL.download().blockingGet()
 
-        ByteBuffer outputByteBuffer = FlowableUtil.collectBytesInBuffer(
-                downloadResponse.body(null)).blockingGet()
+        ByteBuffer outputByteBuffer = FlowableUtil.collectBytesInBuffer(downloadResponse.body(null)).blockingGet()
 
         then:
         uploadResponse.statusCode() == 201
@@ -110,26 +115,122 @@ class EncryptedBlobAPITest extends APISpec {
         byteBuffer == outputByteBuffer
 
         where:
-        size        | byteBufferCount   // note
-        10          | 1                 // 0
-        10          | 2                 // 1
-        16          | 1                 // 2
-        16          | 2                 // 3
-        20          | 1                 // 4
-        20          | 2                 // 5
-        100         | 1                 // 6
-        100         | 2                 // 7
-        100         | 20                // 8
-        KB          | 1                 // 9
-        KB          | 4                 // 10
-        KB          | 8                 // 11
-        10 * KB     | 1                 // 12
-        10 * KB     | 10                // 13
-        5 * KB * KB | 1                 // 14
-        5 * KB * KB | 5                 // 15
-        5 * KB * KB | 10                // 16
-        5 * KB * KB | KB                // 17
+        size    | byteBufferCount
+        10      | 1                 // 0 One buffer smaller than an encryption block.
+        10      | 2                 // 1 A buffer that spans an encryption block.
+        16      | 1                 // 2 A buffer exactly the same size as an encryption block.
+        16      | 2                 // 3 Two buffers the same size as an encryption block.
+        20      | 1                 // 4 One buffer larger than an encryption block.
+        20      | 2                 // 5 Two buffers larger than an encryption block.
+        100     | 1                 // 6 One buffer containing multiple encryption blocks
+        5 * KB  | KB                // 7 Large number of small buffers.
+        10 * MB | 2                 // 8 Small number of large buffers.
     }
+
+    @Unroll
+    def "Encryption headers"() {
+        setup:
+        BlobHTTPHeaders headers = new BlobHTTPHeaders().withBlobCacheControl(cacheControl)
+                .withBlobContentDisposition(contentDisposition)
+                .withBlobContentEncoding(contentEncoding)
+                .withBlobContentLanguage(contentLanguage)
+                .withBlobContentMD5(contentMD5)
+                .withBlobContentType(contentType)
+
+        when:
+        encryptedBlockBlobURL.upload(defaultFlowable, headers, null, null).blockingGet()
+        BlobGetPropertiesResponse response = encryptedBlockBlobURL.getProperties().blockingGet()
+
+        then:
+        response.statusCode() == 200
+        validateBlobHeaders(response.headers(), cacheControl, contentDisposition, contentEncoding, contentLanguage,
+                contentMD5, contentType == null ? "application/octet-stream" : contentType)
+        // HTTP default content type is application/octet-stream
+
+        where:
+        cacheControl | contentDisposition | contentEncoding | contentLanguage | contentMD5                                                   | contentType
+        null         | null               | null            | null            | null                                                         | null
+        "control"    | "disposition"      | "encoding"      | "language"      | MessageDigest.getInstance("MD5").digest(defaultData.array()) | "type"
+    }
+
+    @Unroll
+    def "Encryption metadata"() {
+        setup:
+        Metadata metadata = new Metadata()
+        if (key1 != null) {
+            metadata.put(key1, value1)
+        }
+        if (key2 != null) {
+            metadata.put(key2, value2)
+        }
+
+        when:
+        encryptedBlockBlobURL.upload(defaultFlowable, null, metadata, null).blockingGet()
+        BlobGetPropertiesResponse response = encryptedBlockBlobURL.getProperties().blockingGet()
+
+        then:
+        response.statusCode() == 200
+        response.headers().metadata() == metadata
+
+        where:
+        key1  | value1 | key2   | value2
+        null  | null   | null   | null
+        "foo" | "bar"  | "fizz" | "buzz"
+    }
+
+    @Unroll
+    def "Encryption AC"() {
+        setup:
+        match = setupBlobMatchCondition(encryptedBlockBlobURL, match)
+        leaseID = setupBlobLeaseCondition(encryptedBlockBlobURL, leaseID)
+        BlobAccessConditions bac = new BlobAccessConditions().withModifiedAccessConditions(
+                new ModifiedAccessConditions().withIfModifiedSince(modified).withIfUnmodifiedSince(unmodified)
+                        .withIfMatch(match).withIfNoneMatch(noneMatch))
+                .withLeaseAccessConditions(new LeaseAccessConditions().withLeaseId(leaseID))
+
+        expect:
+        encryptedBlockBlobURL.upload(defaultFlowable, null, null, bac).blockingGet().statusCode() == 201
+
+        where:
+        modified | unmodified | match        | noneMatch   | leaseID
+        null     | null       | null         | null        | null
+        oldDate  | null       | null         | null        | null
+        null     | newDate    | null         | null        | null
+        null     | null       | receivedEtag | null        | null
+        null     | null       | null         | garbageEtag | null
+        null     | null       | null         | null        | receivedLeaseID
+    }
+
+    @Unroll
+    def "Encryption AC fail"() {
+        setup:
+        noneMatch = setupBlobMatchCondition(encryptedBlockBlobURL, noneMatch)
+        setupBlobLeaseCondition(encryptedBlockBlobURL, leaseID)
+        BlobAccessConditions bac = new BlobAccessConditions().withModifiedAccessConditions(
+                new ModifiedAccessConditions().withIfModifiedSince(modified).withIfUnmodifiedSince(unmodified)
+                        .withIfMatch(match).withIfNoneMatch(noneMatch))
+                .withLeaseAccessConditions(new LeaseAccessConditions().withLeaseId(leaseID))
+
+        when:
+        encryptedBlockBlobURL.upload(defaultFlowable, null, null, bac).blockingGet()
+
+        then:
+        def e = thrown(StorageException)
+        e.errorCode() == StorageErrorCode.CONDITION_NOT_MET ||
+                e.errorCode() == StorageErrorCode.LEASE_ID_MISMATCH_WITH_BLOB_OPERATION
+        where:
+        modified | unmodified | match       | noneMatch    | leaseID
+        newDate  | null       | null        | null         | null
+        null     | oldDate    | null        | null         | null
+        null     | null       | garbageEtag | null         | null
+        null     | null       | null        | receivedEtag | null
+        null     | null       | null        | null         | garbageLeaseID
+    }
+
+    // Progress tests
+
+    // Options: Pass a policy and no key on encryption--throw; no encryption policy in construction-> throw
+    // Construct a policy and require encryption=true and no key or resolver -> throw
 
     // TODO: Document which tests are testing which cases. Ensure that some don't align along blocks. Maybe have a mock flowable that returns some really smally byteBuffers.
     // Request one byte. Test key resolver. Lots more. Require encryption tests (and downloading blobs that aren't encryption, esp. ones that are smaller than what the expanded range would try).
@@ -157,8 +258,7 @@ class EncryptedBlobAPITest extends APISpec {
         if (count != null) {
             if (count < byteBuffer.capacity()) {
                 limit = offset + count
-            }
-            else {
+            } else {
                 limit = byteBuffer.capacity()
             }
         } else {
@@ -195,6 +295,23 @@ class EncryptedBlobAPITest extends APISpec {
         5      | 19    | 24   // 20
         5      | 10    | 24   // 21
     }
+
+    /*
+    There are nine interesting locations for the start/end of a ByteBuffer:
+    1. Start of the blob
+    2. Middle of offsetAdjustment
+    3. Last byte of offsetAdjustment
+    4. First byte of user requested data
+    5. Middle of user requested data
+    6. Last byte of user requested data
+    7. First byte of end adjustment
+    8. Middle of end adjustment
+    9. Last byte of download
+
+    The tests below will cover all meaningful pairs, of which there are 36, in as few distinct runs as possible.
+    The notation a/b indicates that the ByteBuffer starts at location a and ends in location b.
+     */
+
 
     @Unroll
     def "Large Blob Tests"() {

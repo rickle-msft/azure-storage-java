@@ -110,17 +110,6 @@ class APISpec extends Specification {
 
     static ServiceURL primaryServiceURL = getGenericServiceURL(primaryCreds)
 
-    static SharedKeyCredentials alternateCreds = getGenericCreds("SECONDARY_")
-
-    /*
-    URLs to various kinds of accounts.
-     */
-    static ServiceURL alternateServiceURL = getGenericServiceURL(alternateCreds)
-
-    static ServiceURL blobStorageServiceURL = getGenericServiceURL(getGenericCreds("BLOB_STORAGE_"))
-
-    static ServiceURL premiumServiceURL = getGenericServiceURL(getGenericCreds("PREMIUM_"))
-
     /*
     Constants for testing that the context parameter is properly passed to the pipeline.
      */
