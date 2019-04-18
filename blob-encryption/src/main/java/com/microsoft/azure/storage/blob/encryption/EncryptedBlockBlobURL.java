@@ -192,7 +192,7 @@ public final class EncryptedBlockBlobURL extends EncryptedBlobURL {
             TransferManagerUploadToBlockBlobOptions uploadOptions = new TransferManagerUploadToBlockBlobOptions(
                     progressReceiver, headers, md, accessConditions, parallelism);
 
-            return TransferManager.uploadFromNonReplayableFlowable(encryptedBlob.getByteBufferFlowable(),
+            return TransferManager.uploadFromNonReplayableFlowable(encryptedBlob.getCipherTextFlowable(),
                     this.toBlockBlobURL(), blockSize, numBuffers, uploadOptions);
         });
     }

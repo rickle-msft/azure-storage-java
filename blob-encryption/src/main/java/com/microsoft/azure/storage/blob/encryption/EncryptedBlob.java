@@ -24,37 +24,37 @@ final class EncryptedBlob {
     /**
      * {@link EncryptionData} to decrypt EncryptedBlob
      */
-    private final EncryptionData encryptedData;
+    private final EncryptionData encryptionData;
 
     /**
      * The encrypted blob content as a Flowable ByteBuffer
      */
-    private final Flowable<ByteBuffer> byteBufferFlowable;
+    private final Flowable<ByteBuffer> cipherTextFlowable;
 
     /**
      * Creates a new EncryptedBlob with given EncryptedData and Flowable ByteBuffer
      *
-     * @param encryptedData
+     * @param encryptionData
      *          A {@link EncryptionData}
-     * @param byteBufferFlowable
+     * @param cipherTextFlowable
      *          A Flowable ByteBuffer
      */
-    EncryptedBlob(EncryptionData encryptedData, Flowable<ByteBuffer> byteBufferFlowable) {
-        this.encryptedData = encryptedData;
-        this.byteBufferFlowable = byteBufferFlowable;
+    EncryptedBlob(EncryptionData encryptionData, Flowable<ByteBuffer> cipherTextFlowable) {
+        this.encryptionData = encryptionData;
+        this.cipherTextFlowable = cipherTextFlowable;
     }
 
     /**
      * @return This EncryptedBlob's EncryptedData.
      */
     EncryptionData getEncryptionData() {
-        return this.encryptedData;
+        return this.encryptionData;
     }
 
     /**
      * @return This EncryptedBlob's Flowable ByteBuffer.
      */
-    Flowable<ByteBuffer> getByteBufferFlowable() {
-        return this.byteBufferFlowable;
+    Flowable<ByteBuffer> getCipherTextFlowable() {
+        return this.cipherTextFlowable;
     }
 }

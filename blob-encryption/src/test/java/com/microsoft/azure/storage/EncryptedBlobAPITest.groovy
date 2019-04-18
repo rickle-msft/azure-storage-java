@@ -227,7 +227,7 @@ class EncryptedBlobAPITest extends APISpec {
         null     | null       | null        | null         | garbageLeaseID
     }
 
-    // Progress tests
+    // Progress tests. Tests with parallel upload/download. Stream retries.
 
     // Options: Pass a policy and no key on encryption--throw; no encryption policy in construction-> throw
     // Construct a policy and require encryption=true and no key or resolver -> throw
@@ -271,7 +271,7 @@ class EncryptedBlobAPITest extends APISpec {
         byteBuffer == outputByteBuffer
 
         where:
-        offset | count | size  // note
+        offset | count | size // note
         0      | null  | 10   // 0
         3      | null  | 10   // 1
         0      | 10    | 10   // 2
@@ -296,22 +296,8 @@ class EncryptedBlobAPITest extends APISpec {
         5      | 10    | 24   // 21
     }
 
-    /*
-    There are nine interesting locations for the start/end of a ByteBuffer:
-    1. Start of the blob
-    2. Middle of offsetAdjustment
-    3. Last byte of offsetAdjustment
-    4. First byte of user requested data
-    5. Middle of user requested data
-    6. Last byte of user requested data
-    7. First byte of end adjustment
-    8. Middle of end adjustment
-    9. Last byte of download
-
-    The tests below will cover all meaningful pairs, of which there are 36, in as few distinct runs as possible.
-    The notation a/b indicates that the ByteBuffer starts at location a and ends in location b.
-     */
-
+    // Keep the small and large blob tests but combine them into Range tests. Looks like some pattern of:
+    // Small, full blob, no offst; small, full blob, offset; small full blob count; ... blob size of block... blob bigger than block... etc.
 
     @Unroll
     def "Large Blob Tests"() {
