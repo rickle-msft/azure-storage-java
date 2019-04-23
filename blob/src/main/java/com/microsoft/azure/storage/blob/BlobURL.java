@@ -391,7 +391,7 @@ public class BlobURL extends StorageURL {
                 .map(response -> {
                     // If there wasn't an etag originally specified, lock on the one returned.
                     info.withETag(response.headers().eTag());
-                    return new DownloadResponse(response, info,
+                    return new RetryableDownloadResponse(response, info,
                             // In the event of a stream failure, make a new request to pick up where we left off.
                             newInfo ->
                                     this.download(new BlobRange().withOffset(newInfo.offset())

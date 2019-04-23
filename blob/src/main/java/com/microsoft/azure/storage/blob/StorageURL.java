@@ -182,4 +182,11 @@ public abstract class StorageURL {
             throw new RuntimeException(e);
         }
     }
+
+    /**
+     * @return This {@code StorageURL}'s internal {@code HttpPipeline}.
+     */
+    public HttpPipeline pipeline() {
+        return this.storageClient.httpPipeline();
+    }
 }

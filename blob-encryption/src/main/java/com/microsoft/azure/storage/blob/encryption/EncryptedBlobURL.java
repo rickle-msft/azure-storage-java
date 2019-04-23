@@ -161,14 +161,17 @@ public class EncryptedBlobURL extends BlobURL {
     }
 
     private Long blobSize(BlobDownloadHeaders headers) {
-        String range = headers.contentRange();
-        return Long.valueOf(range.split("/")[1]);
+        if (headers.contentRange() != null) {
+            String range = headers.contentRange();
+            return Long.valueOf(range.split("/")[1]);
+        }
+        else {
+            // If there was no content range header, we requested a full blob, so the blobSize = contentLength
+            return headers.contentLength();
+        }
     }
 
     private Long calculateCount(BlobDownloadHeaders headers) {
-        String range = headers.contentRange();
-        String upperIndexString = range.split("-")[1].split("/")[0];
-        String lowerIndexString = range.split("-")[0].split(" ")[1];
-        return Long.valueOf(upperIndexString) - Long.valueOf(lowerIndexString) + 1;
+        return headers.contentLength();
     }
 }

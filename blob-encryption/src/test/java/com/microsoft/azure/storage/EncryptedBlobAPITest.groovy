@@ -112,7 +112,7 @@ class EncryptedBlobAPITest extends APISpec {
 
         then:
         uploadResponse.statusCode() == 201
-        downloadResponse.statusCode() == 206
+        downloadResponse.statusCode() == 200
         byteBuffer == outputByteBuffer
 
         where:
@@ -182,6 +182,7 @@ class EncryptedBlobAPITest extends APISpec {
     @Unroll
     def "Encryption AC"() {
         setup:
+        encryptedBlockBlobURL.upload(defaultFlowable).blockingGet()
         match = setupBlobMatchCondition(encryptedBlockBlobURL, match)
         leaseID = setupBlobLeaseCondition(encryptedBlockBlobURL, leaseID)
         BlobAccessConditions bac = new BlobAccessConditions().withModifiedAccessConditions(
@@ -205,6 +206,7 @@ class EncryptedBlobAPITest extends APISpec {
     @Unroll
     def "Encryption AC fail"() {
         setup:
+        encryptedBlockBlobURL.upload(defaultFlowable).blockingGet()
         noneMatch = setupBlobMatchCondition(encryptedBlockBlobURL, noneMatch)
         setupBlobLeaseCondition(encryptedBlockBlobURL, leaseID)
         BlobAccessConditions bac = new BlobAccessConditions().withModifiedAccessConditions(
@@ -240,7 +242,7 @@ class EncryptedBlobAPITest extends APISpec {
     // One blob sample is failing in the onErrorResumeNext case because it gets weird with the generics
 
     @Unroll
-    def "Small blob tests"(int offset, Integer count, int size) {
+    def "Small blob tests"(int offset, Integer count, int size, int status) {
         when:
         ByteBuffer byteBuffer = getRandomData(size)
 
@@ -270,33 +272,33 @@ class EncryptedBlobAPITest extends APISpec {
         byteBuffer.position(offset).limit(limit) // reset the position after the read in upload.
         then:
         uploadResponse.statusCode() == 201
-        downloadResponse.statusCode() == 206
+        downloadResponse.statusCode() == status
         byteBuffer == outputByteBuffer
 
         where:
-        offset | count | size // note
-        0      | null  | 10   // 0
-        3      | null  | 10   // 1
-        0      | 10    | 10   // 2
-        0      | 16    | 10   // 3
-        3      | 16    | 10   // 4
-        0      | 7     | 10   // 5
-        3      | 7     | 10   // 6
-        3      | 3     | 10   // 7
-        0      | null  | 16   // 8
-        5      | null  | 16   // 9
-        0      | 16    | 16   // 10
-        0      | 20    | 16   // 11
-        5      | 20    | 16   // 12
-        5      | 11    | 16   // 13
-        5      | 7     | 16   // 14
-        0      | null  | 24   // 15
-        5      | null  | 24   // 16
-        0      | 24    | 24   // 17
-        5      | 24    | 24   // 18
-        0      | 30    | 24   // 19
-        5      | 19    | 24   // 20
-        5      | 10    | 24   // 21
+        offset | count | size | status // note
+        0      | null  | 10   | 200 // 0
+        3      | null  | 10   | 200 // 1
+        0      | 10    | 10   | 206 // 2
+        0      | 16    | 10   | 206 // 3
+        3      | 16    | 10   | 206 // 4
+        0      | 7     | 10   | 206 // 5
+        3      | 7     | 10   | 206 // 6
+        3      | 3     | 10   | 206 // 7
+        0      | null  | 16   | 200 // 8
+        5      | null  | 16   | 200 // 9
+        0      | 16    | 16   | 206 // 10
+        0      | 20    | 16   | 206 // 11
+        5      | 20    | 16   | 206 // 12
+        5      | 11    | 16   | 206 // 13
+        5      | 7     | 16   | 206 // 14
+        0      | null  | 24   | 200 // 15
+        5      | null  | 24   | 200 // 16
+        0      | 24    | 24   | 206 // 17
+        5      | 24    | 24   | 206 // 18
+        0      | 30    | 24   | 206 // 19
+        5      | 19    | 24   | 206 // 20
+        5      | 10    | 24   | 206 // 21
     }
 
     // Keep the small and large blob tests but combine them into Range tests. Looks like some pattern of:

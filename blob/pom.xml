@@ -20,8 +20,8 @@
     <name>Azure Storage Blob</name>
     <description>The Azure Storage Java Blob library.</description>
     <url>https://github.com/Azure/azure-storage-java</url>
-    <version>11.0.0-EncryptionPreview</version>
     <artifactId>azure-storage-blob</artifactId>
+    <version>11.0.0-EncryptionPreview</version>
 
     <licenses>
         <license>
@@ -68,6 +68,7 @@
         <dependency>
             <groupId>com.microsoft.rest.v2</groupId>
             <artifactId>client-runtime</artifactId>
+            <version>2.1.0</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -83,31 +84,37 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+            <version>4.12</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.spockframework</groupId>
             <artifactId>spock-core</artifactId>
             <scope>test</scope>
+            <version>1.1-groovy-2.4</version>
         </dependency>
         <dependency>
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-all</artifactId>
+            <version>2.4.13</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>cglib</groupId>
             <artifactId>cglib-nodep</artifactId>
+            <version>3.2.7</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.objenesis</groupId>
             <artifactId>objenesis</artifactId>
+            <version>2.6</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>uk.org.lidalia</groupId>
             <artifactId>slf4j-test</artifactId>
+            <version>1.2.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
