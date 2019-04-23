@@ -23,6 +23,7 @@ import com.microsoft.azure.storage.blob.encryption.BlobEncryptionPolicy
 import com.microsoft.azure.storage.blob.encryption.Constants
 import com.microsoft.azure.storage.blob.encryption.EncryptedBlobURL
 import com.microsoft.azure.storage.blob.encryption.EncryptedBlockBlobURL
+import com.microsoft.azure.storage.blob.encryption.TestEncryptionBlob
 import com.microsoft.azure.storage.blob.models.BlobGetPropertiesResponse
 import com.microsoft.azure.storage.blob.models.BlobHTTPHeaders
 import com.microsoft.azure.storage.blob.models.BlockBlobCommitBlockListResponse
@@ -235,6 +236,8 @@ class EncryptedBlobAPITest extends APISpec {
     // TODO: Document which tests are testing which cases. Ensure that some don't align along blocks. Maybe have a mock flowable that returns some really smally byteBuffers.
     // Request one byte. Test key resolver. Lots more. Require encryption tests (and downloading blobs that aren't encryption, esp. ones that are smaller than what the expanded range would try).
     // Samples. API refs. Reliable download.
+    // Test EncryptedBlobRange
+    // One blob sample is failing in the onErrorResumeNext case because it gets weird with the generics
 
     @Unroll
     def "Small blob tests"(int offset, Integer count, int size) {

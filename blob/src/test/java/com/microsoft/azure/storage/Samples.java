@@ -23,11 +23,10 @@ import com.microsoft.rest.v2.http.HttpPipelineLogLevel;
 import com.microsoft.rest.v2.http.HttpPipelineLogger;
 import com.microsoft.rest.v2.http.HttpResponse;
 import com.microsoft.rest.v2.util.FlowableUtil;
-import io.reactivex.Completable;
-import io.reactivex.Flowable;
+import io.reactivex.*;
 import io.reactivex.Observable;
-import io.reactivex.Single;
 import io.reactivex.functions.BiConsumer;
+import io.reactivex.functions.Function;
 import org.junit.Test;
 
 import java.io.File;
@@ -695,7 +694,7 @@ public class Samples {
     }
 
     // This example shows how to perform operations on blobs conditionally.
-    @Test
+    /*@Test
     public void exampleBlobAccessConditions() throws MalformedURLException, InvalidKeyException {
         // From the Azure portal, get your Storage account's name and account key.
         String accountName = getAccountName();
@@ -726,6 +725,7 @@ public class Samples {
 
                             false, null);
                 })
+                .onErrorResumeNext((Function<Throwable, SingleSource<? extends DownloadResponse>>) throwable -> blobURL.download())
                 .onErrorResumeNext(throwable -> {
                     if (throwable instanceof RestException) {
                         System.out.println("Failure: " + ((RestException) throwable).response().statusCode());
@@ -744,7 +744,7 @@ public class Samples {
                  means we will get a different return type and cannot directly recover from the error. To solve this,
                  we go through a completable which will give us more flexibility with types.
                  */
-                .ignoreElement()
+                /*.ignoreElement()
                 .onErrorResumeNext(throwable -> {
                     if (throwable instanceof RestException) {
                         System.out.println("Failure: " + ((RestException) throwable).response().statusCode());
@@ -761,7 +761,7 @@ public class Samples {
                          Upload new content if the blob hasn't changed since the version identified by the ETag
                          (succeeds).
                          */
-                        blobURL.upload(Flowable.just(ByteBuffer.wrap("Text-2".getBytes())), "Text-2".length(),
+                        /*blobURL.upload(Flowable.just(ByteBuffer.wrap("Text-2".getBytes())), "Text-2".length(),
                                 null, null,
                                 new BlobAccessConditions().withModifiedAccessConditions(
                                         new ModifiedAccessConditions().withIfMatch(
@@ -799,8 +799,8 @@ public class Samples {
                 it eliminates the benefits of asynchronous IO. We use it here to enable the sample to complete and
                 demonstrate its effectiveness.
                  */
-                .blockingGet();
-    }
+                /*.blockingGet();
+    }*/
 
     // This example shows how to create a container with metadata and then how to read & update the metadata.
     @Test

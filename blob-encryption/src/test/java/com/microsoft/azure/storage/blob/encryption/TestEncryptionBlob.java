@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-package com.microsoft.azure.storage;
+package com.microsoft.azure.storage.blob.encryption;
 
 import com.microsoft.azure.storage.blob.encryption.EncryptionData;
 

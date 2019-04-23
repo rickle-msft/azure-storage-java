@@ -39,7 +39,7 @@ import java.security.InvalidKeyException;
  * The tests below will cover all meaningful pairs, of which there are 36, in as few distinct runs as possible.
  * The notation a/b indicates that the ByteBuffer starts at location a and ends in location b.
  */
-public class EncryptedFlowableForTest {
+public class EncryptedFlowableForTest extends Flowable<ByteBuffer> {
 
     private ByteBuffer plainText;
 

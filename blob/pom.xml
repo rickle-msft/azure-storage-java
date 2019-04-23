@@ -13,14 +13,15 @@
     <parent>
         <artifactId>azure-storage-java</artifactId>
         <groupId>com.microsoft.azure</groupId>
-        <version>10</version>
+        <version>11</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>azure-storage-blob</artifactId>
-    <version>10.1.0</version>
     <name>Azure Storage Blob</name>
     <description>The Azure Storage Java Blob library.</description>
+    <url>https://github.com/Azure/azure-storage-java</url>
+    <version>11.0.0-EncryptionPreview</version>
+    <artifactId>azure-storage-blob</artifactId>
 
     <licenses>
         <license>
@@ -29,6 +30,12 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+
+    <scm>
+        <url>scm:git:https://github.com/Azure/azure-storage-java</url>
+        <connection>scm:git:git@github.com:Azure/azure-storage-java.git</connection>
+        <tag>HEAD</tag>
+    </scm>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -42,22 +49,71 @@
             <name>Microsoft</name>
         </developer>
     </developers>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>bintray</id>
+            <name>Groovy Bintray</name>
+            <url>https://dl.bintray.com/groovy/maven</url>
+            <releases>
+                <updatePolicy>never</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </pluginRepository>
+    </pluginRepositories>
+
     <dependencies>
-        <!-- The two dependencies are required for mocking in test. -->
+        <dependency>
+            <groupId>com.microsoft.rest.v2</groupId>
+            <artifactId>client-runtime</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.25</version>
+        </dependency>
+        <dependency>
+            <groupId>com.microsoft.azure</groupId>
+            <artifactId>adal4j</artifactId>
+            <version>1.6.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.spockframework</groupId>
+            <artifactId>spock-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>cglib</groupId>
             <artifactId>cglib-nodep</artifactId>
-            <version>3.2.7</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.objenesis</groupId>
             <artifactId>objenesis</artifactId>
-            <version>2.6</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>uk.org.lidalia</groupId>
+            <artifactId>slf4j-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
+
     <build>
+        <sourceDirectory>src/main/java</sourceDirectory>
         <testSourceDirectory>src/test/java</testSourceDirectory>
 
         <plugins>
@@ -90,6 +146,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.20.1</version>
                 <configuration>
+                    <useFile>false</useFile>
                     <includes>
                         <include>**/Test*.*</include>
                         <include>**/*Test.*</include>
@@ -132,6 +189,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.0.0</version>
             </plugin>
         </plugins>
     </build>
