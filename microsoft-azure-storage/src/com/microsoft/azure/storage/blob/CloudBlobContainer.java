@@ -15,6 +15,8 @@
 package com.microsoft.azure.storage.blob;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
@@ -46,6 +48,7 @@ import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.StorageUri;
 import com.microsoft.azure.storage.core.ExecutionEngine;
 import com.microsoft.azure.storage.core.LazySegmentedIterable;
+import com.microsoft.azure.storage.core.Logger;
 import com.microsoft.azure.storage.core.PathUtility;
 import com.microsoft.azure.storage.core.RequestLocationMode;
 import com.microsoft.azure.storage.core.SR;
@@ -55,6 +58,7 @@ import com.microsoft.azure.storage.core.StorageCredentialsHelper;
 import com.microsoft.azure.storage.core.StorageRequest;
 import com.microsoft.azure.storage.core.UriQueryBuilder;
 import com.microsoft.azure.storage.core.Utility;
+import org.slf4j.LoggerFactory;
 
 /**
  * Represents a container in the Microsoft Azure Blob service.
@@ -1470,7 +1474,14 @@ public final class CloudBlobContainer {
             public ResultSegment<ListBlobItem> postProcessResponse(HttpURLConnection connection,
                     CloudBlobContainer container, CloudBlobClient client, OperationContext context,
                     ResultSegment<ListBlobItem> storageObject) throws Exception {
-                final ListBlobsResponse response = BlobListHandler.getBlobList(connection.getInputStream(), container);
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                Utility.writeToOutputStream(connection.getInputStream(), baos, connection.getContentLength(), false, false, context, options);
+                String xmlString = new String(baos.toByteArray());
+                OperationContext context2 = new OperationContext();
+                context2.setLogger(LoggerFactory.getLogger(CloudBlobContainer.class));
+                Logger.debug(context2, "Received list response with body: %s", xmlString, context);
+                final ListBlobsResponse response = BlobListHandler.getBlobList(new ByteArrayInputStream(baos.toByteArray()), container);
+                Logger.debug(context2, "Parsed list response with item count: %d", response.getResults().size(), context);
 
                 ResultContinuation newToken = null;
 

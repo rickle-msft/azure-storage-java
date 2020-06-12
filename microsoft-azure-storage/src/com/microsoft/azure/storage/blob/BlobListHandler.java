@@ -25,6 +25,9 @@ import java.util.Stack;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 
+import com.microsoft.azure.storage.OperationContext;
+import com.microsoft.azure.storage.core.Logger;
+import org.slf4j.LoggerFactory;
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
@@ -52,9 +55,11 @@ final class BlobListHandler extends DefaultHandler {
     private CopyState copyState;
     private String blobName;
     private String snapshotID;
+    OperationContext context = new OperationContext();
 
     private BlobListHandler(CloudBlobContainer container) {
         this.container = container;
+        context.setLogger(LoggerFactory.getLogger(BlobListHandler.class));
     }
 
     /**
@@ -86,6 +91,7 @@ final class BlobListHandler extends DefaultHandler {
             this.properties = new BlobProperties();
             this.metadata = new HashMap<String, String>();
             this.copyState = null;
+            Logger.debug(context, "Starting to parse blob element");
         }
     }
 
@@ -136,10 +142,12 @@ final class BlobListHandler extends DefaultHandler {
             retBlob.metadata = this.metadata;
             retBlob.properties.setCopyState(this.copyState);
 
+            Logger.debug(context, "Adding blob to parsed list results");
             this.response.getResults().add(retBlob);
         }
         else if (BlobConstants.BLOB_PREFIX_ELEMENT.equals(currentNode)) {
             try {
+                Logger.debug(context, "Adding prefix to parsed list results");
                 this.response.getResults().add(this.container.getDirectoryReference(this.blobName));
             }
             catch (URISyntaxException e) {

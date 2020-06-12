@@ -14,6 +14,7 @@
  */
 package com.microsoft.azure.storage.core;
 
+import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import org.slf4j.LoggerFactory;
 
 import com.microsoft.azure.storage.OperationContext;
@@ -60,7 +61,7 @@ public class Logger {
     public static void debug(OperationContext opContext, String format, Object arg1, Object arg2) {
         if (shouldLog(opContext)) {
 
-            org.slf4j.Logger logger = opContext == null ? LoggerFactory.getLogger(OperationContext.defaultLoggerName)
+            org.slf4j.Logger logger = opContext == null ? LoggerFactory.getLogger(CloudBlobContainer.class)
                     : opContext.getLogger();
             if (logger.isDebugEnabled()) {
                 logger.debug(formatLogEntry(opContext, format, arg1, arg2));
